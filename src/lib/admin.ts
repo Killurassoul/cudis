@@ -53,13 +53,14 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   "image/webp": "webp",
   "application/pdf": "pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "text/plain": "txt",
 };
 
 export const ADMIN_ACCEPTED_MIME_TYPES = Object.keys(EXTENSION_BY_MIME);
 
 // Certains navigateurs envoient un type vide ou générique (notamment
 // pour les .docx) : on retombe alors sur l'extension du nom de fichier.
-const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "pdf", "docx"]);
+const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt"]);
 
 function extensionFromName(name: string): string | undefined {
   const match = /\.([a-z0-9]{2,5})$/i.exec(name);
@@ -82,7 +83,7 @@ export async function uploadAdminFile(
   }
   const extension = resolveExtension(file.type, file.name);
   if (!extension || !ALLOWED_EXTENSIONS.has(extension)) {
-    return { error: "Type de fichier non autorisé (acceptés : JPG, PNG, WEBP, PDF, DOCX)." };
+    return { error: "Type de fichier non autorisé (acceptés : JPG, PNG, WEBP, PDF, DOCX, TXT)." };
   }
 
   const path = `${new Date().getFullYear()}/${Date.now()}-${crypto.randomUUID()}.${extension}`;

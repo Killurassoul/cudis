@@ -1088,6 +1088,129 @@ main {
   display: grid;
   gap: 8px;
 }
+.admin-ai-tools,
+.admin-ai-layout {
+  display: grid;
+  gap: 18px;
+}
+.admin-ai-tools {
+  margin-bottom: 18px;
+}
+.admin-ai-intro,
+.admin-ai-card {
+  padding: 18px;
+}
+.admin-ai-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  background: linear-gradient(120deg, white, color-mix(in oklab, var(--gold-soft) 35%, white));
+}
+.admin-ai-intro > svg,
+.admin-ai-card-heading > svg {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  color: var(--green-800);
+}
+.admin-ai-intro h2,
+.admin-ai-card h3 {
+  margin: 0 0 5px;
+  color: var(--green-950);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+}
+.admin-ai-intro p,
+.admin-ai-card-heading p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.admin-ai-card {
+  display: grid;
+  gap: 14px;
+}
+.admin-ai-card-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+.admin-ai-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.admin-ai-settings-grid label,
+.admin-ai-card > label,
+.admin-ai-preview label {
+  display: grid;
+  gap: 7px;
+  color: var(--green-950);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.admin-ai-settings-grid input,
+.admin-ai-settings-grid select {
+  min-height: 40px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  background: white;
+  color: var(--ink);
+}
+.admin-ai-key {
+  grid-column: 1 / -1;
+}
+.admin-ai-key small {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+.admin-ai-status {
+  align-self: center;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+}
+.admin-ai-status.ready {
+  color: var(--green-800);
+  font-weight: 700;
+}
+.admin-ai-preview {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--cream-2);
+}
+.admin-ai-preview h4,
+.admin-ai-preview p {
+  margin: 0;
+}
+.admin-ai-preview pre {
+  max-height: 250px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  background: white;
+  color: var(--green-950);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-ai-workflows {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 820px) {
+  .admin-ai-workflows,
+  .admin-ai-settings-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-ai-key {
+    grid-column: auto;
+  }
+}
 .admin-bulk-upload {
   display: grid;
   gap: 14px;

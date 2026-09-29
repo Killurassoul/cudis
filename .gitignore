@@ -17,6 +17,8 @@ dist-ssr
 .nitro
 *.local
 /.cudis-secrets.php
+/.cudis-ai.json
+/.cudis-ai.local.json
 
 # Wrangler / Cloudflare
 .wrangler/

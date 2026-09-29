@@ -24,7 +24,7 @@ Cela permet de préparer les contenus **avant le lancement** : ouvre `http://127
 3. Définir les secrets côté Supabase, sans les transmettre dans le dépôt ni dans le chat. Dans **Project Settings → Edge Functions → Secrets** (ou `supabase secrets set`), configurer :
 
    - `SUPABASE_SECRET_KEY` : clé secrète serveur Supabase (`sb_secret_*`) ; à défaut, `SUPABASE_SERVICE_ROLE_KEY` si le projet expose encore l'ancienne clé.
-   - `AI_PROVIDER=gemini`, `AI_MODEL=gemini-2.0-flash` et `GEMINI_API_KEY` (ou les secrets Anthropic/OpenAI correspondants).
+   - `AI_PROVIDER=gemini`, `AI_MODEL=gemini-3.6-flash` et `GEMINI_API_KEY` (ou les secrets Anthropic/OpenAI correspondants).
    - `RESEND_API_KEY`, `CONTACT_EMAIL_FROM` (domaine validé) et `CONTACT_EMAIL_TO` pour les notifications e-mail.
 
 4. Déployer les fonctions :
@@ -58,6 +58,16 @@ Le `.htaccess` renvoie les routes React vers `index.html` tout en laissant les f
 ## Administration
 
 `/gestion` permet au compte PHP admin configuré sur OVH de créer, modifier, supprimer et téléverser les membres, programmes, partenaires et ressources, de traiter les messages et de gérer la base de connaissances de l'assistant. Les fichiers de portraits fournis sont servis localement depuis `public/equipe/`; aucune image de membre n'est chargée depuis un site tiers.
+
+L'onglet **Chatbot IA** comprend aussi l'assistant d'administration :
+
+- Choix de Gemini, OpenAI ou Anthropic, saisie du modèle et test de connexion.
+- La clé IA est enregistrée dans `/.cudis-ai.json`, au même niveau que `/.cudis-secrets.php` et hors du webroot. Le compte PHP doit pouvoir écrire dans ce dossier. La clé n'est jamais retournée au navigateur ni enregistrée dans Supabase.
+- En local, les paramètres sont enregistrés dans `.cudis-ai.local.json` à la racine, fichier ignoré par Git. Le serveur Vite reste lié à `127.0.0.1`.
+- L'import d'un PDF texte, DOCX ou TXT demande à l'IA de proposer une fiche. Après validation, le document est ajouté aux ressources et la fiche à la base de connaissances active du chatbot public. Les PDF scannés sans couche texte nécessitent une OCR préalable.
+- Les commandes d'administration proposent une seule création, modification ou suppression sur les membres, programmes, partenaires, ressources et fiches du chatbot. L'action n'est envoyée à Supabase qu'après confirmation; les cibles de modification/suppression doivent déjà figurer dans les enregistrements chargés.
+
+Cette configuration sert à l'assistant d'administration. Le chatbot public reste configuré séparément avec les secrets des Edge Functions Supabase décrits plus haut. Le backend d'administration est une route PHP OVH : la configuration par interface nécessite donc le déploiement OVH documenté ici, et ne fonctionne pas sur un hébergement statique Vercel sans porter cette route PHP vers une fonction serveur.
 
 ## Contrôle des coûts de l'assistant
 

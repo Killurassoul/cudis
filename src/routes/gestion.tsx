@@ -12,9 +12,12 @@ import {
   UploadCloud,
   CheckCircle2,
   AlertCircle,
+  Sparkles,
+  Settings2,
 } from "lucide-react";
 
 import { ImageCropUpload } from "@/components/admin/image-crop-upload";
+import { extractAdminDocument, sanitizeAdminAiProposal, type AdminAiProposal } from "@/lib/admin-ai";
 import { memberPortraitUrl } from "@/data/site";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -282,7 +285,15 @@ function AdminDashboard({ supabase, session }: { supabase: SupabaseClient; sessi
         <MessagesAdmin supabase={supabase} messages={messages} run={run} />
       )}
       {section === "assistant" && (
-        <AssistantKnowledgeAdmin supabase={supabase} items={assistantKnowledge} run={run} />
+        <AssistantKnowledgeAdmin
+          supabase={supabase}
+          items={assistantKnowledge}
+          members={members}
+          programs={programs}
+          partners={partners}
+          resources={resources}
+          run={run}
+        />
       )}
     </AdminShell>
   );
@@ -836,7 +847,7 @@ function FileUpload({ bucket, onUploaded }: { bucket: string; onUploaded: (url: 
       <label className={`admin-upload admin-dropzone ${dragging ? "is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); const file = event.dataTransfer.files[0]; if (file) void upload(file); }}>
         <UploadCloud />
         <span>{busy ? "Téléversement…" : "Déposez un fichier ici ou cliquez pour parcourir"}</span>
-        <small>JPG, PNG, WEBP, PDF ou DOCX · 10 Mo maximum</small>
+        <small>JPG, PNG, WEBP, PDF, DOCX ou TXT · 10 Mo maximum</small>
         <input
           type="file"
           accept={ADMIN_ACCEPTED_MIME_TYPES.join(",")}
@@ -1257,10 +1268,18 @@ function MessagesAdmin({
 function AssistantKnowledgeAdmin({
   supabase,
   items,
+  members,
+  programs,
+  partners,
+  resources,
   run,
 }: {
   supabase: SupabaseClient;
   items: AssistantKnowledge[];
+  members: Member[];
+  programs: Program[];
+  partners: Partner[];
+  resources: Resource[];
   run: RunAction;
 }) {
   const emptyForm = { topic: "", content: "", active: true, sort_order: items.length + 1 };
@@ -1288,7 +1307,9 @@ function AssistantKnowledgeAdmin({
   }
 
   return (
-    <div className="admin-grid">
+    <div className="admin-ai-layout">
+      <AdminAiTools supabase={supabase} items={items} members={members} programs={programs} partners={partners} resources={resources} run={run} />
+      <div className="admin-grid">
       <form className="admin-card admin-form" onSubmit={submit}>
         <h2>{editingId ? "Modifier une information" : "Ajouter une information au chatbot"}</h2>
         <label>
@@ -1328,6 +1349,218 @@ function AssistantKnowledgeAdmin({
           </article>
         ))}
       </List>
+      </div>
     </div>
   );
+}
+
+type AiProvider = "gemini" | "openai" | "anthropic";
+type AiSettings = { provider: AiProvider; model: string; configured: boolean };
+
+const AI_DEFAULT_MODELS: Record<AiProvider, string> = {
+  gemini: "gemini-3.6-flash",
+  openai: "gpt-4.1-mini",
+  anthropic: "claude-haiku-4-5-20251001",
+};
+
+async function adminAiRequest<T>(action: "ai-settings" | "ai-assist", data?: Record<string, unknown>, method: "GET" | "POST" = "POST"): Promise<T> {
+  const response = await fetch(`/api/admin.php?action=${action}`, {
+    method,
+    credentials: "same-origin",
+    ...(method === "POST" ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data ?? {}) } : {}),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error ?? "Requête IA impossible.");
+  return result as T;
+}
+
+function AdminAiTools({
+  supabase, items, members, programs, partners, resources, run,
+}: {
+  supabase: SupabaseClient;
+  items: AssistantKnowledge[];
+  members: Member[];
+  programs: Program[];
+  partners: Partner[];
+  resources: Resource[];
+  run: RunAction;
+}) {
+  const [settings, setSettings] = useState<AiSettings>({ provider: "gemini", model: AI_DEFAULT_MODELS.gemini, configured: false });
+  const [apiKey, setApiKey] = useState("");
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsNotice, setSettingsNotice] = useState("");
+  const [settingsError, setSettingsError] = useState("");
+  const [documentBusy, setDocumentBusy] = useState(false);
+  const [documentError, setDocumentError] = useState("");
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentDraft, setDocumentDraft] = useState<{ topic: string; content: string } | null>(null);
+  const [command, setCommand] = useState("");
+  const [commandBusy, setCommandBusy] = useState(false);
+  const [commandError, setCommandError] = useState("");
+  const [clarification, setClarification] = useState("");
+  const [proposal, setProposal] = useState<AdminAiProposal | null>(null);
+
+  useEffect(() => {
+    void adminAiRequest<AiSettings>("ai-settings", undefined, "GET").then(setSettings).catch((error) => setSettingsError(error instanceof Error ? error.message : "Paramètres IA indisponibles."));
+  }, []);
+
+  async function saveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSettingsBusy(true);
+    setSettingsError("");
+    setSettingsNotice("");
+    try {
+      const saved = await adminAiRequest<AiSettings>("ai-settings", { provider: settings.provider, model: settings.model, apiKey });
+      setSettings(saved);
+      setApiKey("");
+      setSettingsNotice("Réglages IA enregistrés côté serveur.");
+    } catch (error) { setSettingsError(error instanceof Error ? error.message : "Enregistrement impossible."); }
+    finally { setSettingsBusy(false); }
+  }
+
+  async function testConnection() {
+    setSettingsBusy(true);
+    setSettingsError("");
+    setSettingsNotice("");
+    try {
+      const result = await adminAiRequest<{ ok: boolean }>("ai-assist", { purpose: "test" });
+      if (!result.ok) throw new Error("Le test IA n’a pas été confirmé.");
+      setSettingsNotice("Connexion au fournisseur IA réussie.");
+    } catch (error) { setSettingsError(error instanceof Error ? error.message : "Test impossible."); }
+    finally { setSettingsBusy(false); }
+  }
+
+  async function prepareDocument(file: File) {
+    setDocumentFile(file);
+    setDocumentDraft(null);
+    setDocumentError("");
+    setDocumentBusy(true);
+    try {
+      const text = await extractAdminDocument(file);
+      if (text.trim().length < 20) throw new Error("Aucun texte exploitable n’a été trouvé. Le PDF est peut-être un scan : utilisez un document texte ou OCRisez-le d’abord.");
+      const draft = await adminAiRequest<{ topic: string; content: string }>("ai-assist", { purpose: "knowledge", content: text });
+      if (!draft.topic || !draft.content) throw new Error("L’IA n’a pas pu proposer une fiche exploitable.");
+      setDocumentDraft(draft);
+    } catch (error) { setDocumentError(error instanceof Error ? error.message : "Analyse du document impossible."); }
+    finally { setDocumentBusy(false); }
+  }
+
+  async function publishDocument() {
+    if (!documentFile || !documentDraft) return;
+    const saved = await run(async () => {
+      const upload = await uploadAdminFile(supabase, "resources", documentFile);
+      if ("error" in upload) return { error: { message: upload.error } };
+      const resource = await supabase.from("resources").insert({ type: "document", titre: documentDraft.topic, url_fichier: upload.url, url_externe: null, date_publication: new Date().toISOString().slice(0, 10) });
+      if (resource.error) return { error: resource.error };
+      const knowledge = await supabase.from("assistant_knowledge").insert({ topic: documentDraft.topic, content: documentDraft.content, active: true, sort_order: items.length + 1 });
+      return { error: knowledge.error };
+    }, "Document ajouté aux ressources et fiche activée pour le chatbot.");
+    if (saved) { setDocumentDraft(null); setDocumentFile(null); }
+  }
+
+  async function suggestAction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCommandBusy(true);
+    setCommandError("");
+    setClarification("");
+    setProposal(null);
+    const context = [
+      ...members.map((item) => ({ entity: "members", id: item.id, nom: item.nom, slug: item.slug, fonction: item.fonction })),
+      ...programs.map((item) => ({ entity: "programs", id: item.id, titre: item.titre, statut: item.statut })),
+      ...partners.map((item) => ({ entity: "partners", id: item.id, nom: item.nom })),
+      ...resources.map((item) => ({ entity: "resources", id: item.id, titre: item.titre, type: item.type })),
+      ...items.map((item) => ({ entity: "assistant_knowledge", id: item.id, topic: item.topic })),
+    ];
+    try {
+      const result = await adminAiRequest<{ proposal?: unknown; needs_clarification?: string }>("ai-assist", { purpose: "action", command, context });
+      if (result.needs_clarification) setClarification(result.needs_clarification);
+      else if (result.proposal) {
+        const ids = {
+          members: members.map((item) => item.id),
+          programs: programs.map((item) => item.id),
+          partners: partners.map((item) => item.id),
+          resources: resources.map((item) => item.id),
+          assistant_knowledge: items.map((item) => item.id),
+        };
+        setProposal(sanitizeAdminAiProposal(result.proposal, ids));
+      } else throw new Error("Aucune proposition reçue.");
+    } catch (error) { setCommandError(error instanceof Error ? error.message : "Proposition impossible."); }
+    finally { setCommandBusy(false); }
+  }
+
+  async function applyProposal() {
+    if (!proposal) return;
+    const record = { ...proposal.record };
+    const isCreate = proposal.action === "create";
+    const textField = (field: string) => typeof record[field] === "string" ? String(record[field]).trim() : "";
+    const hasValidLink = (value: string) => {
+      try { const url = new URL(value); return url.protocol === "https:" || url.protocol === "http:"; }
+      catch { return false; }
+    };
+    try {
+      if (proposal.entity === "members") {
+        if (isCreate && (!textField("nom") || !textField("fonction"))) throw new Error("Pour créer un membre, il faut son nom et sa fonction.");
+        if (isCreate && !textField("slug")) record["slug"] = slugify(textField("nom"));
+        if (isCreate && !textField("slug")) throw new Error("Le nom ne permet pas de générer un slug.");
+        if (isCreate && record["ordre_affichage"] === undefined) record["ordre_affichage"] = members.length + 1;
+      } else if (proposal.entity === "programs") {
+        if (isCreate && (!textField("titre") || !textField("description"))) throw new Error("Pour créer un programme, il faut son titre et sa description.");
+        if (record["statut"] !== undefined && !["realise", "en_cours", "a_venir"].includes(String(record["statut"]))) throw new Error("Le statut du programme est invalide.");
+        if (isCreate && record["statut"] === undefined) record["statut"] = "a_venir";
+      } else if (proposal.entity === "partners") {
+        if (isCreate && !textField("nom")) throw new Error("Pour créer un partenaire, il faut son nom.");
+        if (record["lien_externe"] && !hasValidLink(String(record["lien_externe"]))) throw new Error("Le lien du partenaire doit commencer par http:// ou https://.");
+      } else if (proposal.entity === "resources") {
+        if (isCreate && (!textField("titre") || !["photo", "video", "audio", "document"].includes(String(record["type"])))) throw new Error("La ressource doit avoir un titre et un type valide.");
+        if (isCreate && !record["url_fichier"] && !record["url_externe"]) throw new Error("Ajoutez un lien de fichier ou un lien externe à la ressource.");
+        if (record["url_externe"] && !hasValidLink(String(record["url_externe"]))) throw new Error("Le lien de la ressource doit commencer par http:// ou https://.");
+        if (isCreate && record["date_publication"] === undefined) record["date_publication"] = new Date().toISOString().slice(0, 10);
+      } else if (proposal.entity === "assistant_knowledge") {
+        if (isCreate && (!textField("topic") || !textField("content"))) throw new Error("Il faut un sujet et un contenu pour la fiche chatbot.");
+        if (isCreate && record["active"] === undefined) record["active"] = true;
+        if (isCreate && record["sort_order"] === undefined) record["sort_order"] = items.length + 1;
+      }
+    } catch (error) {
+      setCommandError(error instanceof Error ? error.message : "La proposition doit être complétée.");
+      return;
+    }
+    const client = supabase as any;
+    const query = proposal.action === "create"
+      ? client.from(proposal.entity).insert(record)
+      : proposal.action === "update"
+        ? client.from(proposal.entity).update(record).eq("id", proposal.target_id)
+        : client.from(proposal.entity).delete().eq("id", proposal.target_id);
+    const success = await run(() => query, proposal.action === "delete" ? "Élément supprimé." : proposal.action === "update" ? "Modification appliquée." : "Élément ajouté.");
+    if (success) { setProposal(null); setCommand(""); }
+  }
+
+  return <section className="admin-ai-tools">
+    <div className="admin-card admin-ai-intro"><Sparkles /><div><h2>Assistant IA d’administration</h2><p>Configurez votre fournisseur, transformez des documents en fiches et préparez des actions sur le site. Chaque modification reste à valider avant application.</p></div></div>
+
+    <form className="admin-card admin-ai-card" onSubmit={saveSettings}>
+      <div className="admin-ai-card-heading"><Settings2 /><div><h3>Configuration IA</h3><p>La clé est conservée hors du dossier public et n’est jamais renvoyée à l’interface.</p></div></div>
+      <div className="admin-ai-settings-grid">
+        <label>Fournisseur<select value={settings.provider} onChange={(event) => { const provider = event.target.value as AiProvider; setSettings({ ...settings, provider, model: AI_DEFAULT_MODELS[provider] }); }}><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic Claude</option></select></label>
+        <label>Modèle<Input value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.target.value })} required /></label>
+        <label className="admin-ai-key">Clé API {settings.configured && <small>Une clé est enregistrée. Laissez vide pour la conserver.</small>}<Input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" autoComplete="new-password" placeholder={settings.configured ? "Clé enregistrée" : "Collez la clé API ici"} /></label>
+      </div>
+      <div className="admin-actions"><Button type="submit" disabled={settingsBusy}><Save />{settingsBusy ? "Enregistrement…" : "Enregistrer"}</Button><Button type="button" variant="outline" disabled={settingsBusy || !settings.configured} onClick={() => void testConnection()}>Tester la connexion</Button><span className={settings.configured ? "admin-ai-status ready" : "admin-ai-status"}>{settings.configured ? "Clé configurée" : "Clé à configurer"}</span></div>
+      {settingsNotice && <p className="admin-notice">{settingsNotice}</p>}{settingsError && <p className="admin-error">{settingsError}</p>}
+    </form>
+
+    <div className="admin-grid admin-ai-workflows">
+      <section className="admin-card admin-ai-card"><div className="admin-ai-card-heading"><UploadCloud /><div><h3>Analyser un document</h3><p>PDF, DOCX ou TXT. L’IA extrait une fiche à valider, et le document sera ajouté aux ressources lors de la publication.</p></div></div>
+        <DropFiles accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" onFiles={(files) => { if (files[0]) void prepareDocument(files[0]); }} hint="10 Mo maximum · le texte d’un PDF scanné nécessite une reconnaissance OCR" />
+        {documentFile && <p className="admin-hint">Document sélectionné : {documentFile.name}</p>}{documentBusy && <p className="admin-hint">Extraction et préparation de la fiche…</p>}{documentError && <p className="admin-error">{documentError}</p>}
+        {documentDraft && <div className="admin-ai-preview"><h4>Aperçu de la fiche proposée</h4><label>Sujet<Input value={documentDraft.topic} onChange={(event) => setDocumentDraft({ ...documentDraft, topic: event.target.value })} maxLength={120} /></label><label>Contenu<Textarea value={documentDraft.content} onChange={(event) => setDocumentDraft({ ...documentDraft, content: event.target.value })} rows={6} maxLength={5000} /></label><Button type="button" onClick={() => void publishDocument()}><Save />Publier le document et activer la fiche</Button></div>}
+      </section>
+
+      <form className="admin-card admin-ai-card" onSubmit={suggestAction}><div className="admin-ai-card-heading"><Sparkles /><div><h3>Demander une action sur le site</h3><p>Exemples : « ajoute le programme X avec cette description », « supprime le partenaire Y ». L’IA propose, vous confirmez.</p></div></div>
+        <label>Votre demande<Textarea value={command} onChange={(event) => setCommand(event.target.value)} rows={4} maxLength={1500} required placeholder="Décrivez ce que vous voulez ajouter, modifier ou supprimer…" /></label>
+        <Button type="submit" disabled={commandBusy || !settings.configured}><Sparkles />{commandBusy ? "Préparation…" : "Préparer une action"}</Button>
+        {!settings.configured && <p className="admin-hint">Enregistrez une clé API pour utiliser l’assistant.</p>}{commandError && <p className="admin-error">{commandError}</p>}{clarification && <p className="admin-notice">Précision nécessaire : {clarification}</p>}
+        {proposal && <div className="admin-ai-preview"><h4>Confirmation requise</h4><p>{proposal.summary}</p><p><strong>{proposal.action}</strong> · {proposal.entity}{proposal.target_id ? ` · cible ${proposal.target_id}` : ""}</p>{proposal.action !== "delete" && <pre>{JSON.stringify(proposal.record, null, 2)}</pre>}<div className="admin-actions"><Button type="button" variant={proposal.action === "delete" ? "destructive" : "default"} onClick={() => void applyProposal()}>{proposal.action === "delete" ? "Confirmer la suppression" : "Confirmer et appliquer"}</Button><Button type="button" variant="outline" onClick={() => setProposal(null)}>Annuler</Button></div></div>}
+      </form>
+    </div>
+  </section>;
 }
