@@ -9,6 +9,9 @@ import {
   Save,
   Trash2,
   Upload,
+  UploadCloud,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 
 import { ImageCropUpload } from "@/components/admin/image-crop-upload";
@@ -464,6 +467,7 @@ function MembersAdmin({
           )}
         </div>
       </form>
+      <BulkMemberPhotos supabase={supabase} members={members} run={run} />
       <List
         title="Membres du bureau"
         toolbar={<span className="admin-hint">Glissez pour réordonner</span>}
@@ -811,6 +815,7 @@ function PartnersAdmin({
 function FileUpload({ bucket, onUploaded }: { bucket: string; onUploaded: (url: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [dragging, setDragging] = useState(false);
   const supabase = getAdminSupabase();
 
   async function upload(file: File) {
@@ -828,9 +833,10 @@ function FileUpload({ bucket, onUploaded }: { bucket: string; onUploaded: (url: 
 
   return (
     <div className="admin-upload-block">
-      <label className="admin-upload">
-        <Upload />
-        {busy ? "Téléversement…" : "Téléverser un fichier"}
+      <label className={`admin-upload admin-dropzone ${dragging ? "is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); const file = event.dataTransfer.files[0]; if (file) void upload(file); }}>
+        <UploadCloud />
+        <span>{busy ? "Téléversement…" : "Déposez un fichier ici ou cliquez pour parcourir"}</span>
+        <small>JPG, PNG, WEBP, PDF ou DOCX · 10 Mo maximum</small>
         <input
           type="file"
           accept={ADMIN_ACCEPTED_MIME_TYPES.join(",")}
@@ -889,6 +895,7 @@ function ResourcesAdmin({
 
   return (
     <div className="admin-grid">
+      <BulkResources supabase={supabase} run={run} />
       <form className="admin-card admin-form" onSubmit={submit}>
         <h2>{editingId ? "Modifier une ressource" : "Ajouter une ressource"}</h2>
         <label>
@@ -1003,6 +1010,113 @@ function ResourcesAdmin({
       </List>
     </div>
   );
+}
+
+type UploadLine = { name: string; state: "sending" | "done" | "error"; message: string | undefined };
+
+function DropFiles({ accept, multiple, onFiles, hint }: { accept: string; multiple?: boolean; onFiles: (files: File[]) => void; hint: string }) {
+  const [dragging, setDragging] = useState(false);
+  return (
+    <label className={`admin-upload admin-dropzone ${dragging ? "is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); onFiles(Array.from(event.dataTransfer.files)); }}>
+      <UploadCloud />
+      <span>Déposez vos fichiers ici ou cliquez pour parcourir</span>
+      <small>{hint}</small>
+      <input type="file" accept={accept} multiple={multiple} onChange={(event) => { onFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
+    </label>
+  );
+}
+
+function UploadResults({ items }: { items: UploadLine[] }) {
+  if (!items.length) return null;
+  return <ul className="admin-upload-results">{items.map((item, index) => <li key={`${item.name}-${index}`} className={item.state}>
+    {item.state === "done" ? <CheckCircle2 /> : item.state === "error" ? <AlertCircle /> : <span className="admin-spinner" />}
+    <span><strong>{item.name}</strong>{item.message && <small>{item.message}</small>}</span>
+  </li>)}</ul>;
+}
+
+async function makeSquarePortrait(file: File): Promise<File> {
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = 800;
+  canvas.height = 800;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Conversion image impossible.");
+  context.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, 800, 800);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.88));
+  if (!blob) throw new Error("Conversion image impossible.");
+  return new File([blob], `${file.name.replace(/\.[^.]+$/, "")}.webp`, { type: "image/webp" });
+}
+
+function BulkMemberPhotos({ supabase, members, run }: { supabase: SupabaseClient; members: Member[]; run: RunAction }) {
+  const [items, setItems] = useState<UploadLine[]>([]);
+  const [busy, setBusy] = useState(false);
+  async function process(files: File[]) {
+    const images = files.filter((file) => file.type.startsWith("image/"));
+    const initialItems: UploadLine[] = files.filter((file) => !file.type.startsWith("image/")).map((file) => ({ name: file.name, state: "error", message: "Fichier image attendu." }));
+    initialItems.push(...images.map((file) => ({ name: file.name, state: "sending" as const, message: undefined })));
+    setItems(initialItems);
+    setBusy(true);
+    for (const file of images) {
+      const key = slugify(file.name.replace(/\.[^.]+$/, ""));
+      const member = members.find((candidate) => key === slugify(candidate.nom) || key === slugify(candidate.slug) || key.includes(slugify(candidate.nom)) || key.includes(slugify(candidate.slug)));
+      const updateLine = (state: UploadLine["state"], message?: string) => setItems((current) => current.map((line) => line.name === file.name ? { ...line, state, message } : line));
+      if (!member) { updateLine("error", "Aucun membre correspondant. Nommez l’image avec le nom ou le slug du membre."); continue; }
+      try {
+        const converted = await makeSquarePortrait(file);
+        const uploaded = await uploadAdminFile(supabase, "member-photos", converted);
+        if ("error" in uploaded) throw new Error(uploaded.error);
+        const { error } = await supabase.from("members").update({ photo_url: uploaded.url }).eq("id", member.id);
+        if (error) throw new Error(describeSupabaseError(error));
+        updateLine("done", `Portrait associé à ${member.nom}.`);
+      } catch (error) { updateLine("error", error instanceof Error ? error.message : "Envoi impossible."); }
+    }
+    setBusy(false);
+    await run(() => Promise.resolve({ error: null }), "Import des portraits terminé.");
+  }
+  return <section className="admin-card admin-bulk-upload">
+    <div><h2>Portraits en lot</h2><p>Déposez plusieurs photos : elles seront recadrées automatiquement et associées grâce au nom du fichier (ex. <code>Aminata-Diop.jpg</code>).</p></div>
+    <DropFiles accept="image/jpeg,image/png,image/webp" multiple onFiles={(files) => void process(files)} hint="JPG, PNG ou WEBP · 10 Mo par image · nom du fichier = nom ou slug du membre" />
+    {busy && <p className="admin-hint">Import en cours… vous pouvez suivre chaque fichier ci-dessous.</p>}
+    <UploadResults items={items} />
+  </section>;
+}
+
+function inferResourceType(file: File): ResourceType {
+  if (file.type.startsWith("image/")) return "photo";
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "mp3" || extension === "wav" || extension === "m4a") return "audio";
+  if (extension === "mp4" || extension === "webm" || extension === "mov") return "video";
+  return "document";
+}
+
+function BulkResources({ supabase, run }: { supabase: SupabaseClient; run: RunAction }) {
+  const [items, setItems] = useState<UploadLine[]>([]);
+  const [busy, setBusy] = useState(false);
+  async function process(files: File[]) {
+    setItems(files.map((file) => ({ name: file.name, state: "sending", message: undefined })));
+    setBusy(true);
+    for (const file of files) {
+      const updateLine = (state: UploadLine["state"], message?: string) => setItems((current) => current.map((line) => line.name === file.name ? { ...line, state, message } : line));
+      try {
+        const uploaded = await uploadAdminFile(supabase, "resources", file);
+        if ("error" in uploaded) throw new Error(uploaded.error);
+        const title = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+        const { error } = await supabase.from("resources").insert({ type: inferResourceType(file), titre: title, url_fichier: uploaded.url, url_externe: null, date_publication: new Date().toISOString().slice(0, 10) });
+        if (error) throw new Error(describeSupabaseError(error));
+        updateLine("done", "Fiche créée et publiée dans les ressources.");
+      } catch (error) { updateLine("error", error instanceof Error ? error.message : "Envoi impossible."); }
+    }
+    setBusy(false);
+    await run(() => Promise.resolve({ error: null }), "Import des ressources terminé.");
+  }
+  return <section className="admin-card admin-bulk-upload admin-bulk-wide">
+    <div><h2>Ajouter plusieurs ressources</h2><p>Chaque fichier crée automatiquement une ressource. Le titre vient du nom de fichier et le type est détecté automatiquement.</p></div>
+    <DropFiles accept={ADMIN_ACCEPTED_MIME_TYPES.join(",")} multiple onFiles={(files) => void process(files)} hint="Images, PDF ou DOCX · 10 Mo par fichier" />
+    {busy && <p className="admin-hint">Import en cours…</p>}
+    <UploadResults items={items} />
+  </section>;
 }
 
 // ---------------- Messages (pas de suppression : archivage) ----------------

@@ -1046,6 +1046,34 @@ main {
   color: var(--green-800);
   cursor: pointer;
 }
+.admin-dropzone {
+  min-height: 112px;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--cream) 76%, white), white);
+  text-align: center;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+.admin-dropzone > svg {
+  width: 23px;
+  height: 23px;
+}
+.admin-dropzone span {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.admin-dropzone small {
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+.admin-dropzone.is-dragging {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  transform: translateY(-1px);
+}
 .admin-upload svg {
   width: 16px;
 }
@@ -1059,6 +1087,78 @@ main {
 .admin-upload-block {
   display: grid;
   gap: 8px;
+}
+.admin-bulk-upload {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+.admin-bulk-upload h2 {
+  margin: 0 0 5px;
+  color: var(--green-950);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+}
+.admin-bulk-upload p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.admin-bulk-upload code {
+  color: var(--green-800);
+}
+.admin-bulk-wide {
+  grid-column: 1 / -1;
+}
+.admin-upload-results {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-upload-results li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: white;
+  color: var(--green-950);
+  font-size: 0.78rem;
+}
+.admin-upload-results li > svg,
+.admin-spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: var(--green-700);
+}
+.admin-upload-results li.error,
+.admin-upload-results li.error > svg {
+  color: var(--destructive);
+}
+.admin-upload-results li > span:not(.admin-spinner) {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-upload-results strong {
+  overflow-wrap: anywhere;
+}
+.admin-upload-results small {
+  color: var(--muted-foreground);
+}
+.admin-spinner {
+  border: 2px solid var(--border);
+  border-top-color: var(--green-700);
+  border-radius: 50%;
+  animation: admin-spin 0.7s linear infinite;
+}
+@keyframes admin-spin {
+  to { transform: rotate(360deg); }
 }
 .admin-crop {
   display: grid;

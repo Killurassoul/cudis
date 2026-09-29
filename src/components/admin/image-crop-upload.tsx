@@ -59,6 +59,7 @@ export function ImageCropUpload({
   const [crop, setCrop] = useState<CropRect>({ x: 0, y: 0, size: FRAME_PX });
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ start: Point; crop: CropRect } | null>(null);
 
@@ -197,9 +198,10 @@ export function ImageCropUpload({
 
   return (
     <div className="admin-upload-block">
-      <label className="admin-upload">
+      <label className={`admin-upload admin-dropzone ${dragging ? "is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); const chosen = event.dataTransfer.files[0]; if (chosen) void openFile(chosen); }}>
         <Upload />
-        {file ? "Changer l'image" : `Choisir une ${label.toLowerCase()}`}
+        <span>{file ? "Changer l'image" : `Déposez ou choisissez une ${label.toLowerCase()}`}</span>
+        <small>JPG, PNG ou WEBP</small>
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
