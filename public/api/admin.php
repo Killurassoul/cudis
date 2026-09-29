@@ -67,8 +67,17 @@ function ai_request(string $system, string $prompt): string {
     curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_HTTPHEADER => $headers, CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE), CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 55, CURLOPT_FOLLOWLOCATION => false]);
     $response = curl_exec($curl);
     $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    $curlError = curl_error($curl);
     curl_close($curl);
-    if (!is_string($response) || $status < 200 || $status >= 300) reply(502, ['error' => 'Le fournisseur IA a refusé la demande. Vérifiez le fournisseur, le modèle et la clé API.']);
+    if (!is_string($response)) reply(502, ['error' => 'Le serveur n’a pas réussi à joindre le fournisseur IA (' . substr($curlError, 0, 180) . ').']);
+    if ($status < 200 || $status >= 300) {
+        $errorData = json_decode($response, true);
+        $detail = is_array($errorData) ? (string) ($errorData['error']['message'] ?? $errorData['message'] ?? '') : '';
+        $detail = trim(preg_replace('/[\x00-\x1F\x7F]+/u', ' ', str_replace($key, '[clé masquée]', $detail)) ?? '');
+        if ($detail === '') $detail = 'Le fournisseur a retourné HTTP ' . $status . '.';
+        preg_match('/^.{0,280}/us', $detail, $shortDetail);
+        reply(502, ['error' => 'Erreur fournisseur (' . $status . ') : ' . ($shortDetail[0] ?? 'Réponse invalide.')]);
+    }
     $data = json_decode($response, true);
     $text = $provider === 'gemini'
         ? ($data['candidates'][0]['content']['parts'][0]['text'] ?? '')

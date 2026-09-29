@@ -36,7 +36,12 @@ async function localAiJson(system: string, prompt: string) {
     body = { model, max_tokens: 1600, system, messages: [{ role: "user", content: prompt }] };
   }
   const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(55000) });
-  if (!response.ok) throw new Error("Le fournisseur IA a refusé la demande. Vérifiez le fournisseur, le modèle et la clé API.");
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    const detail = typeof errorData?.error?.message === "string" ? errorData.error.message : `HTTP ${response.status}`;
+    const safeDetail = detail.replaceAll(key, "[clé masquée]").replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 280);
+    throw new Error(`Erreur fournisseur (${response.status}) : ${safeDetail}`);
+  }
   const data = await response.json();
   const text = provider === "gemini" ? data.candidates?.[0]?.content?.parts?.[0]?.text : provider === "openai" ? data.choices?.[0]?.message?.content : data.content?.[0]?.text;
   const parsed = JSON.parse(text);
