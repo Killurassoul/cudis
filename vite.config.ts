@@ -48,7 +48,8 @@ function localAdminGateway(): Plugin {
             res.end(JSON.stringify({ error: "Cette opération admin locale n’est pas autorisée." }));
             return;
           }
-          const targetHeaders = new Headers({ apikey: secret, Authorization: `Bearer ${secret}` });
+          const targetHeaders = new Headers({ apikey: secret });
+          if (!secret.startsWith("sb_secret_")) targetHeaders.set("Authorization", `Bearer ${secret}`);
           for (const name of ["content-type", "prefer", "accept", "range", "content-range", "x-upsert", "cache-control"]) {
             const value = req.headers[`x-admin-${name}`];
             if (typeof value === "string") targetHeaders.set(name, value);

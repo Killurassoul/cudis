@@ -1,5 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { clientIp, corsHeaders, hashIp, json } from "../_shared/cors.ts";
+import { clientIp, corsHeaders, createServiceClient, hashIp, json } from "../_shared/cors.ts";
 
 type Knowledge = { topic: string; content: string };
 type Member = { nom: string; fonction: string };
@@ -84,7 +83,7 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SECRET_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceKey) return json({ error: "Assistant momentanément indisponible." }, 503);
-  const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const supabase = createServiceClient(supabaseUrl, serviceKey);
 
   const ipHash = await hashIp(clientIp(request));
   const { data: usageId, error: quotaError } = await supabase.rpc("reserve_assistant_usage", {

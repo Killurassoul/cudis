@@ -1,5 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { clientIp, corsHeaders, hashIp, json } from "../_shared/cors.ts";
+import { clientIp, corsHeaders, createServiceClient, hashIp, json } from "../_shared/cors.ts";
 
 const clean = (value: unknown, max: number) => typeof value === "string" ? value.trim().slice(0, max) : "";
 
@@ -22,7 +21,7 @@ Deno.serve(async (request) => {
   const url = Deno.env.get("SUPABASE_URL");
   const secretKey = Deno.env.get("SUPABASE_SECRET_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !secretKey) return json({ error: "Service de contact momentanément indisponible." }, 503);
-  const supabase = createClient(url, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const supabase = createServiceClient(url, secretKey);
   const { data: id, error } = await supabase.rpc("submit_contact_message", {
     p_nom: nom,
     p_email: email,

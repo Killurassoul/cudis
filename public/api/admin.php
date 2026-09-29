@@ -118,8 +118,10 @@ if (!$allowedMethod || (!$restAllowed && !$storageAllowed)) reply(403, ['error' 
 $url = rtrim((string) $config['supabase_url'], '/') . $targetPath;
 $forwardHeaders = [
     'apikey: ' . $config['supabase_secret_key'],
-    'Authorization: Bearer ' . $config['supabase_secret_key'],
 ];
+if (!str_starts_with((string) $config['supabase_secret_key'], 'sb_secret_')) {
+    $forwardHeaders[] = 'Authorization: Bearer ' . $config['supabase_secret_key'];
+}
 foreach (['content-type', 'prefer', 'accept', 'range', 'content-range', 'x-upsert', 'cache-control'] as $name) {
     $value = $_SERVER['HTTP_X_ADMIN_' . strtoupper(str_replace('-', '_', $name))] ?? null;
     if ($name === 'content-type') $value = $_SERVER['CONTENT_TYPE'] ?? $value;

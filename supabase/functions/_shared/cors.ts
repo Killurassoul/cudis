@@ -1,3 +1,5 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
+
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-api-version",
@@ -21,4 +23,19 @@ export function clientIp(request: Request): string {
 export async function hashIp(ip: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ip));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export function createServiceClient(url: string, key: string) {
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: (input, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set("apikey", key);
+        if (key.startsWith("sb_secret_")) headers.delete("Authorization");
+        else headers.set("Authorization", `Bearer ${key}`);
+        return fetch(input, { ...init, headers });
+      },
+    },
+  });
 }
