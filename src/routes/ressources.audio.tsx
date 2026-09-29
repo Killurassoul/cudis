@@ -1,25 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { EmptyState, PageHero } from "@/components/site/page";
 import { getPublicResourcesByType } from "@/lib/content";
+import { useAsyncValue } from "@/lib/use-async-value";
 
-export const Route = createFileRoute("/ressources/audio")({
-  loader: () => getPublicResourcesByType("audio"),
-  head: () => ({
-    meta: [
-      { title: "Audio — Ressources CUDIS" },
-      { name: "description", content: "Enregistrements et prises de parole du CUDIS." },
-      { property: "og:title", content: "Audio — CUDIS" },
-      { property: "og:description", content: "Enregistrements et prises de parole du CUDIS." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [{ rel: "canonical", href: "/ressources/audio" }],
-  }),
-  component: Page,
-});
+const loadAudio = () => getPublicResourcesByType("audio");
 
-function Page() {
-  const audios = Route.useLoaderData();
+export default function Page() {
+  const audios = useAsyncValue("audio", loadAudio, []);
   return (
     <>
       <PageHero

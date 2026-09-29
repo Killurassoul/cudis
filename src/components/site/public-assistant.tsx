@@ -1,5 +1,6 @@
 import { FormEvent, useRef, useState } from "react";
 import { Bot, LoaderCircle, MessageCircle, Send, X } from "lucide-react";
+import { getSupabaseBrowserClient, hasSupabasePublicEnv } from "@/lib/supabase";
 
 type Message = { role: "assistant" | "user"; text: string };
 
@@ -23,27 +24,16 @@ export function PublicAssistant() {
     setMessages((current) => [...current, { role: "user", text }]);
     setSending(true);
     try {
-      const response = await fetch("/api/assistant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text }),
+      if (!hasSupabasePublicEnv()) throw new Error("Assistant not configured");
+      const { data, error } = await getSupabaseBrowserClient().functions.invoke("assistant", {
+        body: { question: text },
       });
-      const data = (await response.json()) as { answer?: string; error?: string };
-      setMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          text:
-            data.answer ??
-            (response.status === 503
-              ? "L’assistant sera bientôt disponible. Vous pouvez nous écrire depuis la page Contact."
-              : data.error ?? "Je n’ai pas pu répondre. Réessayez dans un instant."),
-        },
-      ]);
+      if (error) throw error;
+      setMessages((current) => [...current, { role: "assistant", text: data.answer }]);
     } catch {
       setMessages((current) => [
         ...current,
-        { role: "assistant", text: "Connexion interrompue. Merci de réessayer." },
+        { role: "assistant", text: "L’assistant est momentanément indisponible. Merci de réessayer plus tard ou de nous écrire depuis la page Contact." },
       ]);
     } finally {
       setSending(false);

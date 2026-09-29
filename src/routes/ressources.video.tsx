@@ -1,33 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
 import { EmptyState, PageHero } from "@/components/site/page";
 import { getPublicResourcesByType } from "@/lib/content";
+import { useAsyncValue } from "@/lib/use-async-value";
 
-export const Route = createFileRoute("/ressources/video")({
-  loader: () => getPublicResourcesByType("video"),
-  head: () => ({
-    meta: [
-      { title: "Vidéo — Ressources CUDIS" },
-      { name: "description", content: "Interventions, conférences et reportages du CUDIS." },
-      { property: "og:title", content: "Vidéo — CUDIS" },
-      { property: "og:description", content: "Interventions, conférences et reportages du CUDIS." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [{ rel: "canonical", href: "/ressources/video" }],
-  }),
-  component: Page,
-});
+const loadVideos = () => getPublicResourcesByType("video");
 
-// Extrait l'identifiant d'une URL YouTube pour l'intégration iframe.
 function youtubeEmbedUrl(url: string): string | null {
   const match =
     /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/.exec(url);
   return match?.[1] ? `https://www.youtube-nocookie.com/embed/${match[1]}` : null;
 }
 
-function Page() {
-  const videos = Route.useLoaderData();
+export default function Page() {
+  const videos = useAsyncValue("videos", loadVideos, []);
   return (
     <>
       <PageHero

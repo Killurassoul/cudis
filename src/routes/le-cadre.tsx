@@ -1,31 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Eye, Scale, ShieldCheck } from "lucide-react";
 import { FacebookEmbed } from "@/components/site/facebook-embed";
 import { PageHero, SectionHeading } from "@/components/site/page";
 import { aboutText, missionText } from "@/data/site";
-export const Route = createFileRoute("/le-cadre")({
-  head: () => ({
-    meta: [
-      { title: "Le Cadre — CUDIS" },
-      {
-        name: "description",
-        content:
-          "Découvrez l’histoire, la mission et les principes du Cadre Unitaire de l’Islam au Sénégal.",
-      },
-      { property: "og:title", content: "Le Cadre — CUDIS" },
-      {
-        property: "og:description",
-        content:
-          "Une volonté commune de préserver la cohésion sociale, la paix et la tolérance religieuse au Sénégal.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [{ rel: "canonical", href: "/le-cadre" }],
-  }),
-  component: Page,
-});
-function Page() {
+export default function Page() {
   return (
     <>
       <PageHero

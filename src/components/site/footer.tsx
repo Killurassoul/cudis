@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link } from "react-router-dom";
 import { Facebook, Mail, MapPin } from "lucide-react";
 import { Brand } from "./brand";
 import { FacebookEmbed } from "./facebook-embed";

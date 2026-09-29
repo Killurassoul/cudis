@@ -1,33 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { MemberCard } from "@/components/site/cards";
 import { PageHero } from "@/components/site/page";
 import { getPublicMembers } from "@/lib/content";
+import { useAsyncValue } from "@/lib/use-async-value";
 
-export const Route = createFileRoute("/equipe")({
-  loader: () => getPublicMembers(),
-  head: ({ loaderData }) => ({
-    meta: [
-      { title: "Équipe — CUDIS" },
-      {
-        name: "description",
-        content: "Découvrez les membres du bureau du CUDIS et leurs responsabilités.",
-      },
-      { property: "og:title", content: "Le bureau du CUDIS" },
-      {
-        property: "og:description",
-        content: "Les membres engagés au service de l'unité de l'islam au Sénégal.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      ...(loaderData?.length ? [] : [{ name: "robots", content: "noindex" }]),
-    ],
-    links: [{ rel: "canonical", href: "/equipe" }],
-  }),
-  component: Page,
-});
+const loadMembers = () => getPublicMembers();
 
-function Page() {
-  const members = Route.useLoaderData();
+export default function Page() {
+  const members = useAsyncValue("members", loadMembers, []);
   return (
     <>
       <PageHero

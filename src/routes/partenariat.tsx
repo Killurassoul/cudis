@@ -1,31 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { PageHero, SectionHeading } from "@/components/site/page";
 import { getPublicPartners } from "@/lib/content";
+import { useAsyncValue } from "@/lib/use-async-value";
 
-export const Route = createFileRoute("/partenariat")({
-  loader: () => getPublicPartners(),
-  head: () => ({
-    meta: [
-      { title: "Partenariat — CUDIS" },
-      {
-        name: "description",
-        content: "Les organisations partenaires du Cadre Unitaire de l'Islam au Sénégal.",
-      },
-      { property: "og:title", content: "Nos partenaires — CUDIS" },
-      {
-        property: "og:description",
-        content: "Les institutions qui accompagnent l'action du CUDIS.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [{ rel: "canonical", href: "/partenariat" }],
-  }),
-  component: Page,
-});
+const loadPartners = () => getPublicPartners();
 
-function Page() {
-  const partners = Route.useLoaderData();
+export default function Page() {
+  const partners = useAsyncValue("partners", loadPartners, []);
   return (
     <>
       <PageHero

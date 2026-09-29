@@ -49,6 +49,30 @@ export const members = [
   { slug: "cheikh-ahmed-saloum-dieng", name: "Cheikh Ahmed Saloum Dieng", role: "Vice-président" },
 ] as const;
 
+export const memberPortraits: Record<string, string> = {
+  "cheikh-tidiane-sy": "/equipe/cheikh-tidiane-sy.jpg",
+  "ouztaz-makhtar-kebe": "/equipe/ouztaz-makhtar-kebe.png",
+  "cherif-mballo": "/equipe/cherif-mballo.jpg",
+  "abdou-aziz-mbacke-majalis": "/equipe/abdou-aziz-mbacke-majalis.jpg",
+  "djibril-laye-diop": "/equipe/djibril-laye-diop.jpg",
+  "dr-abdoullah-lam": "/equipe/dr-abdoullah-lam.jpg",
+  "pr-malamine-kourouma": "/equipe/pr-malamine-kourouma.png",
+  "mame-cheikh-mbacke": "/equipe/mame-cheikh-mbacke.jpg",
+  "dr-cheikh-gueye": "/equipe/dr-cheikh-gueye.jpg",
+  "dr-mamarame-seck": "/equipe/dr-mamarame-seck.jpg",
+  "pr-fatou-sarr-sow": "/equipe/pr-fatou-sarr-sow.jpg",
+  "dr-moustapha-mbengue": "/equipe/dr-moustapha-mbengue.jpg",
+  "serigne-sam-bousso": "/equipe/serigne-sam-bousso.jpg",
+  "dr-mamadou-dia": "/equipe/dr-mamadou-dia.jpg",
+  "serigne-bou-mohamed-kounta": "/equipe/serigne-bou-mohamed-kounta.png",
+  "cheikh-ahmed-saloum-dieng": "/equipe/cheikh-ahmed-saloum-dieng.png",
+};
+
+export function memberPortraitUrl(slug: string, uploadedUrl: string | null) {
+  if (uploadedUrl && !uploadedUrl.includes("islamsenegal.org")) return uploadedUrl;
+  return memberPortraits[slug] ?? null;
+}
+
 export const programs = [
   {
     slug: "projet-dahiras",

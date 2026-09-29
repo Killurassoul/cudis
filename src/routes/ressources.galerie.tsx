@@ -1,28 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { EmptyState, PageHero } from "@/components/site/page";
 import { getPublicResourcesByType } from "@/lib/content";
+import { useAsyncValue } from "@/lib/use-async-value";
 
-export const Route = createFileRoute("/ressources/galerie")({
-  loader: () => getPublicResourcesByType("photo"),
-  head: () => ({
-    meta: [
-      { title: "Galerie — Ressources CUDIS" },
-      { name: "description", content: "Photographies des activités et rencontres du CUDIS." },
-      { property: "og:title", content: "Galerie — CUDIS" },
-      {
-        property: "og:description",
-        content: "Photographies des activités et rencontres du CUDIS.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [{ rel: "canonical", href: "/ressources/galerie" }],
-  }),
-  component: Page,
-});
+const loadPhotos = () => getPublicResourcesByType("photo");
 
-function Page() {
-  const photos = Route.useLoaderData();
+export default function Page() {
+  const photos = useAsyncValue("photos", loadPhotos, []);
   return (
     <>
       <PageHero

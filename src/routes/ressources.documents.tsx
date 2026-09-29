@@ -1,29 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { FileText } from "lucide-react";
 import { EmptyState, PageHero } from "@/components/site/page";
 import { getPublicResourcesByType } from "@/lib/content";
+import { useAsyncValue } from "@/lib/use-async-value";
 
-export const Route = createFileRoute("/ressources/documents")({
-  loader: () => getPublicResourcesByType("document"),
-  head: () => ({
-    meta: [
-      { title: "Documents — Ressources CUDIS" },
-      { name: "description", content: "Communiqués et publications institutionnelles du CUDIS." },
-      { property: "og:title", content: "Documents — CUDIS" },
-      {
-        property: "og:description",
-        content: "Communiqués et publications institutionnelles du CUDIS.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [{ rel: "canonical", href: "/ressources/documents" }],
-  }),
-  component: Page,
-});
+const loadDocuments = () => getPublicResourcesByType("document");
 
-function Page() {
-  const documents = Route.useLoaderData();
+export default function Page() {
+  const documents = useAsyncValue("documents", loadDocuments, []);
   return (
     <>
       <PageHero

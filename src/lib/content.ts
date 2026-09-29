@@ -7,9 +7,7 @@ import {
 } from "@/data/site";
 import {
   getSupabaseBrowserClient,
-  getSupabaseServiceClient,
   hasSupabasePublicEnv,
-  tryGetSupabaseServiceClient,
   type Member,
   type Partner,
   type Program,
@@ -34,7 +32,7 @@ const SUPABASE_TIMEOUT_MS = 4000;
 
 function getPublicClient(): SupabaseClient | null {
   if (!hasSupabasePublicEnv()) return null;
-  return typeof window === "undefined" ? tryGetSupabaseServiceClient() : getSupabaseBrowserClient();
+  return getSupabaseBrowserClient();
 }
 
 async function querySupabase<T>(

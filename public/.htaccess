@@ -1,0 +1,8 @@
+Options -MultiViews
+RewriteEngine On
+
+# Sert directement les ressources existantes et renvoie les routes SPA à Vite.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+RewriteRule ^ index.html [L]

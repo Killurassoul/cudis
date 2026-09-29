@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link } from "react-router-dom";
 import { ArrowRight, BookOpen, Handshake, Users } from "lucide-react";
 import { Brand } from "@/components/site/brand";
 import { FacebookEmbed } from "@/components/site/facebook-embed";
@@ -7,52 +7,10 @@ import { ProgramCard } from "@/components/site/cards";
 import { aboutText } from "@/data/site";
 import { getPublicPrograms } from "@/lib/content";
 import { Button } from "@/components/ui/button";
+import { useAsyncValue } from "@/lib/use-async-value";
 
-export const Route = createFileRoute("/")({
-  loader: () => getPublicPrograms(),
-  head: () => ({
-    meta: [
-      { title: "CUDIS — Cadre Unitaire de l’Islam au Sénégal" },
-      {
-        name: "description",
-        content:
-          "Le CUDIS œuvre pour la paix, la cohésion sociale et la préservation du modèle islamique sénégalais.",
-      },
-      { property: "og:title", content: "CUDIS — Cadre Unitaire de l’Islam au Sénégal" },
-      {
-        property: "og:description",
-        content:
-          "Une institution au service de la paix, de la tolérance et du vivre-ensemble au Sénégal.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [{ rel: "canonical", href: "/" }],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "Organization",
-          name: "Cadre Unitaire de l’Islam au Sénégal",
-          alternateName: "CUDIS",
-          email: "contact@cudis.com",
-          address: {
-            "@type": "PostalAddress",
-            streetAddress:
-              "Liberté 6, SCAT Urbam, derrière le Restaurant Pentola, Immeuble GSI, 2e étage",
-            addressLocality: "Dakar",
-            addressCountry: "SN",
-          },
-          sameAs: ["https://facebook.com/CadreUnitaireIslam", "https://x.com/Islam_Senegal"],
-        }),
-      },
-    ],
-  }),
-  component: HomePage,
-});
-function HomePage() {
-  const programs = Route.useLoaderData();
+export default function HomePage() {
+  const programs = useAsyncValue("programmes", getPublicPrograms, []);
   const featured = programs.find((program) => program.statut === "en_cours") ?? programs[0];
   return (
     <>

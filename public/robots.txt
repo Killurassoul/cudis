@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 Disallow: /gestion
-Sitemap: /sitemap.xml
+Sitemap: https://islamsenegal.org/sitemap.xml

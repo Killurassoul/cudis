@@ -1,49 +1,29 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { initials } from "@/data/site";
+import { initials, memberPortraitUrl } from "@/data/site";
 import { getMemberBySlug } from "@/lib/content";
+import type { Member } from "@/lib/supabase";
 
-export const Route = createFileRoute("/equipe/$slug")({
-  loader: async ({ params }) => {
-    const member = await getMemberBySlug(params.slug);
-    if (!member) throw notFound();
-    return member;
-  },
-  head: ({ loaderData }) => ({
-    meta: [
-      { title: loaderData ? `${loaderData.nom} — CUDIS` : "Membre introuvable — CUDIS" },
-      {
-        name: "description",
-        content: loaderData
-          ? `${loaderData.nom}, ${loaderData.fonction} au sein du CUDIS.`
-          : "Ce profil n'est pas disponible.",
-      },
-      {
-        property: "og:title",
-        content: loaderData ? `${loaderData.nom} — CUDIS` : "Membre du CUDIS",
-      },
-      {
-        property: "og:description",
-        content: loaderData?.fonction ?? "Profil d'un membre du CUDIS.",
-      },
-      { property: "og:type", content: "profile" },
-      { name: "twitter:card", content: "summary_large_image" },
-      ...(!loaderData ? [{ name: "robots", content: "noindex" }] : []),
-    ],
-    links: loaderData ? [{ rel: "canonical", href: `/equipe/${loaderData.slug}` }] : [],
-  }),
-  notFoundComponent: Missing,
-  component: Page,
-});
+export default function Page() {
+  const { slug = "" } = useParams();
+  const [member, setMember] = useState<Member | null | undefined>(undefined);
+  useEffect(() => {
+    let active = true;
+    void getMemberBySlug(slug).then((value) => { if (active) setMember(value); });
+    return () => { active = false; };
+  }, [slug]);
 
-function Page() {
-  const member = Route.useLoaderData();
+  if (member === undefined) return <p className="section page-container" role="status">Chargement du profil…</p>;
+  if (!member) return <Missing />;
+  const photoUrl = memberPortraitUrl(member.slug, member.photo_url);
+
   return (
     <section className="profile-page islamic-pattern">
       <div className="page-container profile-grid">
         <div className="profile-portrait">
-          {member.photo_url ? (
-            <img src={member.photo_url} alt={`Photo de ${member.nom}`} />
+          {photoUrl ? (
+            <img src={photoUrl} alt={`Photo de ${member.nom}`} />
           ) : (
             <span>{initials(member.nom)}</span>
           )}

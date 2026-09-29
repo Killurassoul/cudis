@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { ImageCropUpload } from "@/components/admin/image-crop-upload";
+import { memberPortraitUrl } from "@/data/site";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +25,7 @@ import {
 } from "@/lib/admin";
 import type {
   ContactSubmission,
+  AssistantKnowledge,
   Member,
   Partner,
   Program,
@@ -33,24 +34,7 @@ import type {
   ResourceType,
 } from "@/lib/supabase";
 
-// ------------------------------------------------------------
-// Panneau d'administration du CUDIS — /gestion
-//
-// - Connexion e-mail / mot de passe via Supabase Auth (pas
-//   d'inscription publique ; comptes créés manuellement).
-// - Route volontairement discrète (robots.txt, noindex) : couche
-//   de confort uniquement, la sécurité vient des policies RLS.
-// - Sobre et direct : conçu pour un usage non technique.
-// ------------------------------------------------------------
-
-export const Route = createFileRoute("/gestion")({
-  head: () => ({
-    meta: [{ title: "Administration — CUDIS" }, { name: "robots", content: "noindex, nofollow" }],
-  }),
-  component: AdminPage,
-});
-
-type AdminSection = "members" | "programs" | "partners" | "resources" | "messages";
+type AdminSection = "members" | "programs" | "partners" | "resources" | "messages" | "assistant";
 
 const STATUS_LABELS: Record<ProgramStatus, string> = {
   realise: "Réalisé",
@@ -74,7 +58,17 @@ function slugify(value: string) {
     .replace(/^-|-$/g, "");
 }
 
-function AdminPage() {
+// ------------------------------------------------------------
+// Panneau d'administration du CUDIS — /gestion
+//
+// - Connexion e-mail / mot de passe via Supabase Auth (pas
+//   d'inscription publique ; comptes créés manuellement).
+// - Route volontairement discrète (robots.txt, noindex) : couche
+//   de confort uniquement, la sécurité vient des policies RLS.
+// - Sobre et direct : conçu pour un usage non technique.
+// ------------------------------------------------------------
+
+export default function AdminPage() {
   const supabase = useMemo(() => getAdminSupabase(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -175,17 +169,19 @@ function AdminDashboard({ supabase, session }: { supabase: SupabaseClient; sessi
   const [partners, setPartners] = useState<Partner[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [messages, setMessages] = useState<ContactSubmission[]>([]);
+  const [assistantKnowledge, setAssistantKnowledge] = useState<AssistantKnowledge[]>([]);
   const [notice, setNotice] = useState("");
   const [loadError, setLoadError] = useState("");
 
   async function load() {
     setLoadError("");
-    const [membersRes, programsRes, partnersRes, resourcesRes, messagesRes] = await Promise.all([
+    const [membersRes, programsRes, partnersRes, resourcesRes, messagesRes, knowledgeRes] = await Promise.all([
       supabase.from("members").select("*").order("ordre_affichage", { ascending: true }),
       supabase.from("programs").select("*").order("created_at", { ascending: false }),
       supabase.from("partners").select("*").order("nom", { ascending: true }),
       supabase.from("resources").select("*").order("date_publication", { ascending: false }),
       supabase.from("contact_submissions").select("*").order("date_envoi", { ascending: false }),
+      supabase.from("assistant_knowledge").select("*").order("sort_order", { ascending: true }),
     ]);
     const firstError =
       membersRes.error ??
@@ -193,8 +189,9 @@ function AdminDashboard({ supabase, session }: { supabase: SupabaseClient; sessi
       partnersRes.error ??
       resourcesRes.error ??
       messagesRes.error;
-    if (firstError) {
-      setLoadError(describeSupabaseError(firstError));
+    const loadFailure = firstError ?? knowledgeRes.error;
+    if (loadFailure) {
+      setLoadError(describeSupabaseError(loadFailure));
       return;
     }
     setMembers((membersRes.data ?? []) as Member[]);
@@ -202,6 +199,7 @@ function AdminDashboard({ supabase, session }: { supabase: SupabaseClient; sessi
     setPartners((partnersRes.data ?? []) as Partner[]);
     setResources((resourcesRes.data ?? []) as Resource[]);
     setMessages((messagesRes.data ?? []) as ContactSubmission[]);
+    setAssistantKnowledge((knowledgeRes.data ?? []) as AssistantKnowledge[]);
   }
 
   useEffect(() => {
@@ -246,6 +244,7 @@ function AdminDashboard({ supabase, session }: { supabase: SupabaseClient; sessi
             ["partners", "Partenaires"],
             ["resources", "Ressources"],
             ["messages", "Messages"],
+            ["assistant", "Chatbot IA"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -272,6 +271,9 @@ function AdminDashboard({ supabase, session }: { supabase: SupabaseClient; sessi
       )}
       {section === "messages" && (
         <MessagesAdmin supabase={supabase} messages={messages} run={run} />
+      )}
+      {section === "assistant" && (
+        <AssistantKnowledgeAdmin supabase={supabase} items={assistantKnowledge} run={run} />
       )}
     </AdminShell>
   );
@@ -474,7 +476,7 @@ function MembersAdmin({
               <span className="admin-drag-handle" aria-hidden="true">
                 <GripVertical />
               </span>
-              {member.photo_url && <img src={member.photo_url} alt="" />}
+              {memberPortraitUrl(member.slug, member.photo_url) && <img src={memberPortraitUrl(member.slug, member.photo_url) ?? ""} alt="" />}
               <strong>{member.nom}</strong>
               <span>
                 {member.fonction}
@@ -1129,5 +1131,83 @@ function MessagesAdmin({
         </article>
       ))}
     </List>
+  );
+}
+
+function AssistantKnowledgeAdmin({
+  supabase,
+  items,
+  run,
+}: {
+  supabase: SupabaseClient;
+  items: AssistantKnowledge[];
+  run: RunAction;
+}) {
+  const emptyForm = { topic: "", content: "", active: true, sort_order: items.length + 1 };
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const payload = {
+      topic: form.topic.trim(),
+      content: form.content.trim(),
+      active: form.active,
+      sort_order: Number(form.sort_order),
+    };
+    const saved = await run(
+      () => editingId
+        ? supabase.from("assistant_knowledge").update(payload).eq("id", editingId)
+        : supabase.from("assistant_knowledge").insert(payload),
+      editingId ? "Information du chatbot modifiée." : "Information ajoutée au chatbot.",
+    );
+    if (saved) {
+      setEditingId(null);
+      setForm({ ...emptyForm, sort_order: items.length + 2 });
+    }
+  }
+
+  return (
+    <div className="admin-grid">
+      <form className="admin-card admin-form" onSubmit={submit}>
+        <h2>{editingId ? "Modifier une information" : "Ajouter une information au chatbot"}</h2>
+        <label>
+          Sujet
+          <Input value={form.topic} onChange={(event) => setForm({ ...form, topic: event.target.value })} maxLength={120} required />
+        </label>
+        <label>
+          Contenu que l’assistant peut utiliser
+          <Textarea value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} rows={7} maxLength={5000} required />
+        </label>
+        <label>
+          Ordre d’affichage
+          <Input type="number" min={0} value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: Number(event.target.value) })} />
+        </label>
+        <label className="admin-check">
+          <input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} />
+          Utiliser cette information dans les réponses
+        </label>
+        <div className="admin-actions">
+          <Button type="submit"><Save />{editingId ? "Enregistrer" : "Ajouter"}</Button>
+          {editingId && <Button type="button" variant="outline" onClick={() => { setEditingId(null); setForm(emptyForm); }}>Annuler</Button>}
+        </div>
+      </form>
+      <List title={`Base de connaissance (${items.length})`}>
+        {items.length === 0 ? <p className="admin-empty">Aucune information ajoutée.</p> : items.map((item) => (
+          <article className="admin-row" key={item.id}>
+            <div>
+              <strong>{item.topic}</strong>
+              <p>{item.content}</p>
+              <small>{item.active ? "Utilisée par le chatbot" : "Désactivée"} · ordre {item.sort_order}</small>
+            </div>
+            <div className="admin-actions">
+              <Button type="button" variant="outline" size="sm" onClick={() => { setEditingId(item.id); setForm({ topic: item.topic, content: item.content, active: item.active, sort_order: item.sort_order }); }}>Modifier</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => void run(() => supabase.from("assistant_knowledge").update({ active: !item.active }).eq("id", item.id), item.active ? "Information désactivée." : "Information activée.")}>{item.active ? "Désactiver" : "Activer"}</Button>
+              <Button type="button" variant="destructive" size="sm" onClick={() => void run(() => supabase.from("assistant_knowledge").delete().eq("id", item.id), "Information supprimée.")}><Trash2 />Supprimer</Button>
+            </div>
+          </article>
+        ))}
+      </List>
+    </div>
   );
 }

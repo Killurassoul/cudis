@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { getSupabaseBrowserClient, hasSupabasePublicEnv } from "@/lib/supabase";
 
 const schema = z.object({
   name: z.string().trim().min(2, "Veuillez renseigner votre nom.").max(100),
@@ -38,12 +39,11 @@ export function ContactForm() {
     setErrors({});
     setState("sending");
     try {
-      const response = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed.data),
+      if (!hasSupabasePublicEnv()) throw new Error("Supabase is not configured");
+      const { error } = await getSupabaseBrowserClient().functions.invoke("contact", {
+        body: parsed.data,
       });
-      if (!response.ok) throw new Error("Request failed");
+      if (error) throw error;
       setState("success");
       form.reset();
     } catch {

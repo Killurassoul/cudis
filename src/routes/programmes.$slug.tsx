@@ -1,40 +1,21 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { getProgramByIdentifier } from "@/lib/content";
+import type { Program } from "@/lib/supabase";
 
-export const Route = createFileRoute("/programmes/$slug")({
-  loader: async ({ params }) => {
-    const program = await getProgramByIdentifier(params.slug);
-    if (!program) throw notFound();
-    return program;
-  },
-  head: ({ loaderData }) => ({
-    meta: [
-      { title: loaderData ? `${loaderData.titre} — CUDIS` : "Programme introuvable — CUDIS" },
-      {
-        name: "description",
-        content: loaderData?.description ?? "Ce programme n'est pas disponible.",
-      },
-      {
-        property: "og:title",
-        content: loaderData ? `${loaderData.titre} — CUDIS` : "Programme du CUDIS",
-      },
-      {
-        property: "og:description",
-        content: loaderData?.description ?? "Les programmes du CUDIS.",
-      },
-      { property: "og:type", content: "article" },
-      { name: "twitter:card", content: "summary_large_image" },
-      ...(!loaderData ? [{ name: "robots", content: "noindex" }] : []),
-    ],
-  }),
-  notFoundComponent: Missing,
-  component: Page,
-});
+export default function Page() {
+  const { slug = "" } = useParams();
+  const [program, setProgram] = useState<Program | null | undefined>(undefined);
+  useEffect(() => {
+    let active = true;
+    void getProgramByIdentifier(slug).then((value) => { if (active) setProgram(value); });
+    return () => { active = false; };
+  }, [slug]);
 
-function Page() {
-  const program = Route.useLoaderData();
-  const { slug } = Route.useParams();
+  if (program === undefined) return <p className="section page-container" role="status">Chargement du programme…</p>;
+  if (!program) return <Missing />;
+
   const period = program.date_debut
     ? `${program.date_debut}${program.date_fin ? ` → ${program.date_fin}` : ""}`
     : null;

@@ -1,0 +1,7 @@
+project_id = "nfpjcckvdkzkjmltmwrn"
+
+[functions.assistant]
+verify_jwt = false
+
+[functions.contact]
+verify_jwt = false

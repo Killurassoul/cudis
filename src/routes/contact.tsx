@@ -1,28 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Facebook, Mail, MapPin } from "lucide-react";
 import { ContactForm } from "@/components/site/contact-form";
 import { PageHero, SectionHeading } from "@/components/site/page";
-export const Route = createFileRoute("/contact")({
-  head: () => ({
-    meta: [
-      { title: "Contact — CUDIS" },
-      {
-        name: "description",
-        content: "Contactez le CUDIS à Dakar par formulaire, e-mail ou réseaux sociaux.",
-      },
-      { property: "og:title", content: "Contacter le CUDIS" },
-      {
-        property: "og:description",
-        content: "Adresse, e-mail, réseaux sociaux et formulaire de contact du CUDIS.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [{ rel: "canonical", href: "/contact" }],
-  }),
-  component: Page,
-});
-function Page() {
+export default function Page() {
   const map = "https://www.google.com/maps?q=14.7351652,-17.4627704&z=16&output=embed";
   return (
     <>
