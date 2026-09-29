@@ -24,7 +24,7 @@ Cela permet de préparer les contenus **avant le lancement** : ouvre `http://127
 3. Définir les secrets côté Supabase, sans les transmettre dans le dépôt ni dans le chat. Dans **Project Settings → Edge Functions → Secrets** (ou `supabase secrets set`), configurer :
 
    - `SUPABASE_SECRET_KEY` : clé secrète serveur Supabase (`sb_secret_*`) ; à défaut, `SUPABASE_SERVICE_ROLE_KEY` si le projet expose encore l'ancienne clé.
-   - `AI_PROVIDER=gemini`, `AI_MODEL=gemini-3.6-flash` et `GEMINI_API_KEY` (ou les secrets Anthropic/OpenAI correspondants).
+   - `AI_PROVIDER=gemini`, `AI_MODEL=gemini-3.8-flash` et `GEMINI_API_KEY` (ou les secrets Anthropic/OpenAI correspondants).
    - `RESEND_API_KEY`, `CONTACT_EMAIL_FROM` (domaine validé) et `CONTACT_EMAIL_TO` pour les notifications e-mail.
 
 4. Déployer les fonctions :
@@ -62,6 +62,7 @@ Le `.htaccess` renvoie les routes React vers `index.html` tout en laissant les f
 L'onglet **Chatbot IA** comprend aussi l'assistant d'administration :
 
 - Choix de Gemini, OpenAI ou Anthropic, saisie du modèle et test de connexion.
+- Chaque fournisseur conserve sa propre clé; un statut séparé montre quels connecteurs ont une clé configurée. Gemini démarre sur `gemini-3.8-flash`.
 - La clé IA est enregistrée dans `/.cudis-ai.json`, au même niveau que `/.cudis-secrets.php` et hors du webroot. Le compte PHP doit pouvoir écrire dans ce dossier. La clé n'est jamais retournée au navigateur ni enregistrée dans Supabase.
 - En local, les paramètres sont enregistrés dans `.cudis-ai.local.json` à la racine, fichier ignoré par Git. Le serveur Vite reste lié à `127.0.0.1`.
 - L'import d'un PDF texte, DOCX ou TXT demande à l'IA de proposer une fiche. Après validation, le document est ajouté aux ressources et la fiche à la base de connaissances active du chatbot public. Les PDF scannés sans couche texte nécessitent une OCR préalable.

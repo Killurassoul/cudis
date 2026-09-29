@@ -33,13 +33,17 @@ function ai_settings(): array {
     $saved = is_file($path) ? json_decode((string) file_get_contents($path), true) : [];
     if (!is_array($saved)) $saved = [];
     $provider = in_array(($saved['provider'] ?? ''), ['gemini', 'openai', 'anthropic'], true) ? $saved['provider'] : 'gemini';
-    $defaults = ['gemini' => 'gemini-3.6-flash', 'openai' => 'gpt-4.1-mini', 'anthropic' => 'claude-haiku-4-5-20251001'];
-    return ['provider' => $provider, 'model' => (string) ($saved['model'] ?? $defaults[$provider]), 'api_key' => (string) ($saved['api_key'] ?? '')];
+    $defaults = ['gemini' => 'gemini-3.8-flash', 'openai' => 'gpt-4.1-mini', 'anthropic' => 'claude-haiku-4-5-20251001'];
+    $keys = is_array($saved['api_keys'] ?? null) ? $saved['api_keys'] : [];
+    if (!isset($keys[$provider]) && !empty($saved['api_key'])) $keys[$provider] = $saved['api_key'];
+    return ['provider' => $provider, 'model' => (string) ($saved['model'] ?? $defaults[$provider]), 'api_keys' => $keys, 'api_key' => (string) ($keys[$provider] ?? '')];
 }
 
 function public_ai_settings(): array {
     $settings = ai_settings();
-    return ['provider' => $settings['provider'], 'model' => $settings['model'], 'configured' => $settings['api_key'] !== ''];
+    $connections = [];
+    foreach (['gemini', 'openai', 'anthropic'] as $provider) $connections[$provider] = !empty($settings['api_keys'][$provider]);
+    return ['provider' => $settings['provider'], 'model' => $settings['model'], 'configured' => $settings['api_key'] !== '', 'connections' => $connections];
 }
 
 function ai_request(string $system, string $prompt): string {
@@ -158,10 +162,13 @@ if (in_array($action, ['ai-settings', 'ai-assist'], true)) {
         $model = trim((string) ($data['model'] ?? ''));
         if (!in_array($provider, ['gemini', 'openai', 'anthropic'], true) || !preg_match('/^[A-Za-z0-9._:-]{2,100}$/', $model)) reply(400, ['error' => 'Fournisseur ou modèle invalide.']);
         $previous = ai_settings();
-        $key = !empty($data['clearKey']) ? '' : (trim((string) ($data['apiKey'] ?? '')) ?: $previous['api_key']);
+        $keys = $previous['api_keys'];
+        if (!empty($data['clearKey'])) unset($keys[$provider]);
+        else if (trim((string) ($data['apiKey'] ?? '')) !== '') $keys[$provider] = trim((string) $data['apiKey']);
+        $key = (string) ($keys[$provider] ?? '');
         if (strlen($key) > 500 || ($key !== '' && !preg_match('/^[A-Za-z0-9._-]+$/', $key))) reply(400, ['error' => 'Format de clé API invalide.']);
         $path = ai_settings_path();
-        $written = @file_put_contents($path, json_encode(['provider' => $provider, 'model' => $model, 'api_key' => $key], JSON_UNESCAPED_SLASHES), LOCK_EX);
+        $written = @file_put_contents($path, json_encode(['provider' => $provider, 'model' => $model, 'api_keys' => $keys], JSON_UNESCAPED_SLASHES), LOCK_EX);
         if ($written === false) reply(500, ['error' => 'Le serveur ne peut pas enregistrer le fichier secret IA hors du dossier public. Vérifiez les permissions OVH.']);
         @chmod($path, 0600);
         reply(200, public_ai_settings());

@@ -7,7 +7,7 @@ type Provider = "gemini" | "anthropic" | "openai";
 
 const providerNames: Provider[] = ["gemini", "anthropic", "openai"];
 const defaultModels: Record<Provider, string> = {
-  gemini: "gemini-2.0-flash",
+  gemini: "gemini-3.8-flash",
   anthropic: "claude-3-5-haiku-20241022",
   openai: "gpt-4o-mini",
 };

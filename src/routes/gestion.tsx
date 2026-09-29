@@ -1355,10 +1355,10 @@ function AssistantKnowledgeAdmin({
 }
 
 type AiProvider = "gemini" | "openai" | "anthropic";
-type AiSettings = { provider: AiProvider; model: string; configured: boolean };
+type AiSettings = { provider: AiProvider; model: string; configured: boolean; connections: Partial<Record<AiProvider, boolean>> };
 
 const AI_DEFAULT_MODELS: Record<AiProvider, string> = {
-  gemini: "gemini-3.6-flash",
+  gemini: "gemini-3.8-flash",
   openai: "gpt-4.1-mini",
   anthropic: "claude-haiku-4-5-20251001",
 };
@@ -1385,7 +1385,7 @@ function AdminAiTools({
   resources: Resource[];
   run: RunAction;
 }) {
-  const [settings, setSettings] = useState<AiSettings>({ provider: "gemini", model: AI_DEFAULT_MODELS.gemini, configured: false });
+  const [settings, setSettings] = useState<AiSettings>({ provider: "gemini", model: AI_DEFAULT_MODELS.gemini, configured: false, connections: {} });
   const [apiKey, setApiKey] = useState("");
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsNotice, setSettingsNotice] = useState("");
@@ -1427,6 +1427,18 @@ function AdminAiTools({
       if (!result.ok) throw new Error("Le test IA n’a pas été confirmé.");
       setSettingsNotice("Connexion au fournisseur IA réussie.");
     } catch (error) { setSettingsError(error instanceof Error ? error.message : "Test impossible."); }
+    finally { setSettingsBusy(false); }
+  }
+
+  async function removeCurrentKey() {
+    setSettingsBusy(true);
+    setSettingsError("");
+    setSettingsNotice("");
+    try {
+      const saved = await adminAiRequest<AiSettings>("ai-settings", { provider: settings.provider, model: settings.model, clearKey: true });
+      setSettings(saved);
+      setSettingsNotice(`Clé ${settings.provider} retirée du serveur.`);
+    } catch (error) { setSettingsError(error instanceof Error ? error.message : "Suppression impossible."); }
     finally { setSettingsBusy(false); }
   }
 
@@ -1540,11 +1552,14 @@ function AdminAiTools({
     <form className="admin-card admin-ai-card" onSubmit={saveSettings}>
       <div className="admin-ai-card-heading"><Settings2 /><div><h3>Configuration IA</h3><p>La clé est conservée hors du dossier public et n’est jamais renvoyée à l’interface.</p></div></div>
       <div className="admin-ai-settings-grid">
-        <label>Fournisseur<select value={settings.provider} onChange={(event) => { const provider = event.target.value as AiProvider; setSettings({ ...settings, provider, model: AI_DEFAULT_MODELS[provider] }); }}><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic Claude</option></select></label>
+        <label>Fournisseur<select value={settings.provider} onChange={(event) => { const provider = event.target.value as AiProvider; setSettings({ ...settings, provider, model: settings.provider === provider ? settings.model : AI_DEFAULT_MODELS[provider], configured: Boolean(settings.connections[provider]) }); setApiKey(""); }}><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic Claude</option></select></label>
         <label>Modèle<Input value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.target.value })} required /></label>
-        <label className="admin-ai-key">Clé API {settings.configured && <small>Une clé est enregistrée. Laissez vide pour la conserver.</small>}<Input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" autoComplete="new-password" placeholder={settings.configured ? "Clé enregistrée" : "Collez la clé API ici"} /></label>
+        <label className="admin-ai-key">Clé API · {settings.provider} {settings.connections[settings.provider] && <small>Clé déjà connectée à ce fournisseur. Laissez vide pour la conserver.</small>}<Input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" autoComplete="new-password" placeholder={settings.connections[settings.provider] ? "Clé enregistrée" : "Collez la clé API de ce fournisseur"} /></label>
       </div>
-      <div className="admin-actions"><Button type="submit" disabled={settingsBusy}><Save />{settingsBusy ? "Enregistrement…" : "Enregistrer"}</Button><Button type="button" variant="outline" disabled={settingsBusy || !settings.configured} onClick={() => void testConnection()}>Tester la connexion</Button><span className={settings.configured ? "admin-ai-status ready" : "admin-ai-status"}>{settings.configured ? "Clé configurée" : "Clé à configurer"}</span></div>
+      <div className="admin-ai-connections" aria-label="État des connecteurs">
+        {(["gemini", "openai", "anthropic"] as const).map((provider) => <span key={provider} className={settings.connections[provider] ? "connected" : ""}>{settings.connections[provider] ? <CheckCircle2 /> : <AlertCircle />}{provider === "anthropic" ? "Claude" : provider === "gemini" ? "Gemini" : "OpenAI"} · {settings.connections[provider] ? "Connecté" : "Clé à ajouter"}</span>)}
+      </div>
+      <div className="admin-actions"><Button type="submit" disabled={settingsBusy}><Save />{settingsBusy ? "Enregistrement…" : "Enregistrer ce connecteur"}</Button><Button type="button" variant="outline" disabled={settingsBusy || !settings.configured} onClick={() => void testConnection()}>Tester la connexion</Button>{settings.connections[settings.provider] && <Button type="button" variant="outline" disabled={settingsBusy} onClick={() => void removeCurrentKey()}>Retirer cette clé</Button>}</div>
       {settingsNotice && <p className="admin-notice">{settingsNotice}</p>}{settingsError && <p className="admin-error">{settingsError}</p>}
     </form>
 

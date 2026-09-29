@@ -5,14 +5,16 @@ import { readFile, writeFile, chmod } from "node:fs/promises";
 import { resolve } from "node:path";
 
 type AiProvider = "gemini" | "openai" | "anthropic";
-const defaultAiModels: Record<AiProvider, string> = { gemini: "gemini-3.6-flash", openai: "gpt-4.1-mini", anthropic: "claude-haiku-4-5-20251001" };
+const defaultAiModels: Record<AiProvider, string> = { gemini: "gemini-3.8-flash", openai: "gpt-4.1-mini", anthropic: "claude-haiku-4-5-20251001" };
 
-async function localAiSettings(): Promise<{ provider: AiProvider; model: string; api_key: string }> {
+async function localAiSettings(): Promise<{ provider: AiProvider; model: string; api_keys: Partial<Record<AiProvider, string>>; api_key: string }> {
   try {
     const saved = JSON.parse(await readFile(resolve(process.cwd(), ".cudis-ai.local.json"), "utf8"));
     const provider: AiProvider = ["gemini", "openai", "anthropic"].includes(saved.provider) ? saved.provider : "gemini";
-    return { provider, model: typeof saved.model === "string" ? saved.model : defaultAiModels[provider], api_key: typeof saved.api_key === "string" ? saved.api_key : "" };
-  } catch { return { provider: "gemini", model: defaultAiModels.gemini, api_key: "" }; }
+    const api_keys: Partial<Record<AiProvider, string>> = saved.api_keys && typeof saved.api_keys === "object" ? saved.api_keys : {};
+    if (!api_keys[provider] && typeof saved.api_key === "string") api_keys[provider] = saved.api_key;
+    return { provider, model: typeof saved.model === "string" ? saved.model : defaultAiModels[provider], api_keys, api_key: api_keys[provider] ?? "" };
+  } catch { return { provider: "gemini", model: defaultAiModels.gemini, api_keys: {}, api_key: "" }; }
 }
 
 async function localAiJson(system: string, prompt: string) {
@@ -78,7 +80,8 @@ function localAdminGateway(): Plugin {
           if (action === "ai-settings" && req.method === "GET") {
             const settings = await localAiSettings();
             res.statusCode = 200;
-            res.end(JSON.stringify({ provider: settings.provider, model: settings.model, configured: Boolean(settings.api_key) }));
+            const connections = Object.fromEntries(["gemini", "openai", "anthropic"].map((provider) => [provider, Boolean(settings.api_keys[provider as AiProvider])]));
+            res.end(JSON.stringify({ provider: settings.provider, model: settings.model, configured: Boolean(settings.api_key), connections }));
             return;
           }
           if (action === "ai-settings" && req.method === "POST") {
@@ -87,13 +90,17 @@ function localAdminGateway(): Plugin {
             const defaults = defaultAiModels[provider];
             if (!defaults || typeof data.model !== "string" || !/^[A-Za-z0-9._:-]{2,100}$/.test(data.model)) throw new Error("Fournisseur ou modèle invalide.");
             const previous = await localAiSettings();
-            const key = data.clearKey ? "" : (typeof data.apiKey === "string" && data.apiKey.trim() ? data.apiKey.trim() : previous.api_key);
+            const api_keys = { ...previous.api_keys };
+            if (data.clearKey) delete api_keys[provider];
+            else if (typeof data.apiKey === "string" && data.apiKey.trim()) api_keys[provider] = data.apiKey.trim();
+            const key = api_keys[provider] ?? "";
             if (key.length > 500 || (key && !/^[A-Za-z0-9._-]+$/.test(key))) throw new Error("Format de clé API invalide.");
             const path = resolve(process.cwd(), ".cudis-ai.local.json");
-            await writeFile(path, JSON.stringify({ provider, model: data.model.trim(), api_key: key }), { mode: 0o600 });
+            await writeFile(path, JSON.stringify({ provider, model: data.model.trim(), api_keys }), { mode: 0o600 });
             try { await chmod(path, 0o600); } catch { /* Windows permissions are managed by the user account. */ }
             res.statusCode = 200;
-            res.end(JSON.stringify({ provider, model: data.model.trim(), configured: Boolean(key) }));
+            const connections = Object.fromEntries(["gemini", "openai", "anthropic"].map((name) => [name, Boolean(api_keys[name as AiProvider])]));
+            res.end(JSON.stringify({ provider, model: data.model.trim(), configured: Boolean(key), connections }));
             return;
           }
           if (action === "ai-assist" && req.method === "POST") {

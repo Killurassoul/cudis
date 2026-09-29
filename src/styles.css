@@ -1176,6 +1176,30 @@ main {
   color: var(--green-800);
   font-weight: 700;
 }
+.admin-ai-connections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-ai-connections span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: white;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+}
+.admin-ai-connections svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-ai-connections .connected {
+  border-color: color-mix(in oklab, var(--green-700) 30%, white);
+  color: var(--green-800);
+}
 .admin-ai-preview {
   display: grid;
   gap: 12px;
