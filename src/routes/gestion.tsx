@@ -231,9 +231,15 @@ function AdminDashboard({ supabase, session }: { supabase: SupabaseClient; sessi
           <h1>Administration CUDIS</h1>
           <p>{session.email}</p>
         </div>
-        <Button variant="outline" onClick={() => void fetch("/api/admin.php?action=logout", { method: "POST", credentials: "same-origin" }).then(() => window.location.reload())}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (import.meta.env.DEV) window.location.assign("/");
+            else void fetch("/api/admin.php?action=logout", { method: "POST", credentials: "same-origin" }).then(() => window.location.reload());
+          }}
+        >
           <LogOut />
-          Déconnexion
+          {import.meta.env.DEV ? "Quitter l’admin" : "Déconnexion"}
         </Button>
       </div>
       <nav className="admin-tabs" aria-label="Sections d'administration">

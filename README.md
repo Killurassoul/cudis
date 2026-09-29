@@ -11,7 +11,9 @@ npm run dev
 npm run build
 ```
 
-Seules les variables `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont nécessaires au navigateur. Utiliser la clé publishable/anon du projet Supabase. Les clés `service_role`, `sb_secret_*` et les clés d'IA ne doivent jamais être ajoutées à `.env.local`, au dépôt ou à une variable `VITE_*`.
+Seules les variables `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont nécessaires au navigateur. Utiliser la clé publishable/anon du projet Supabase. Les clés serveur ne doivent jamais être commitées ni exposées dans une variable `VITE_*`.
+
+Pour **le développement local uniquement**, `npm run dev` ouvre `/gestion` directement sans écran de connexion et utilise le proxy privé Vite. Ajoute une clé serveur Supabase fraîche à `CUDIS_LOCAL_SUPABASE_SECRET_KEY` dans `.env.local` pour que les ajouts/modifications fonctionnent. Cette variable n'a pas de préfixe `VITE_`, reste côté serveur, et n'entre pas dans `dist/`. Le serveur de développement écoute uniquement sur `127.0.0.1`. Ne déploie jamais le serveur Vite et n'utilise pas cette connexion locale en production.
 
 ## Préparer Supabase
 
