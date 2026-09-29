@@ -1,6 +1,6 @@
 # CUDIS — déploiement statique OVH
 
-Le site est une application React/Vite statique. Le dossier `dist/` contient les fichiers à publier sur l'hébergement mutualisé OVH. Supabase fournit l'authentification, la base, le stockage et deux Edge Functions publiques pour le formulaire et l'assistant.
+Le site est une application React/Vite statique avec une petite passerelle PHP pour l'administration. Le dossier `dist/` contient les fichiers à publier sur l'hébergement mutualisé OVH. Supabase fournit la base, le stockage et deux Edge Functions publiques pour le formulaire et l'assistant. La connexion `/gestion` utilise une session PHP OVH et ne dépend pas de Supabase Auth.
 
 ## Développement et compilation
 
@@ -16,7 +16,7 @@ Seules les variables `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont néces
 ## Préparer Supabase
 
 1. Exécuter les migrations `supabase/migrations/` dans l'ordre, depuis l'éditeur SQL Supabase ou avec `supabase db push` après liaison du projet.
-2. Configurer les comptes administrateurs dans `app.admin_emails` comme décrit par la migration initiale. Créer leurs comptes dans **Authentication → Users**. Les droits d'écriture sont protégés par RLS ; `VITE_ADMIN_EMAILS` sert seulement au confort de connexion.
+2. Aucun compte Supabase Auth n'est requis pour `/gestion`. Le serveur PHP OVH authentifie un compte administrateur et relaie seulement les tables et buckets autorisés, avec une clé secrète qui reste hors du navigateur.
 3. Définir les secrets côté Supabase, sans les transmettre dans le dépôt ni dans le chat. Dans **Project Settings → Edge Functions → Secrets** (ou `supabase secrets set`), configurer :
 
    - `SUPABASE_SECRET_KEY` : clé secrète serveur Supabase (`sb_secret_*`) ; à défaut, `SUPABASE_SERVICE_ROLE_KEY` si le projet expose encore l'ancienne clé.
@@ -32,17 +32,28 @@ supabase functions deploy contact
 
 Les fonctions sont accessibles sans session visiteur (`verify_jwt = false`), vérifient les entrées et appliquent les limites serveur : 10 questions d'assistant et 5 messages de contact par heure et par adresse IP hachée. L'assistant utilise uniquement le contenu public et les fiches de connaissance activées par l'admin. Les échanges ne sont pas conservés.
 
+## Configurer l'accès admin OVH
+
+L'hébergement doit prendre en charge PHP 8.1 ou plus récent, cURL et les sessions. Le script `public/api/admin.php` exige un fichier secret placé **à côté du répertoire `www/`, jamais dedans**. Copier `deploy/cudis-secrets.example.php` sous `/.cudis-secrets.php` sur l'espace OVH, puis définir :
+
+- `admin_email` : adresse de connexion choisie.
+- `admin_password_hash` : hash généré sur un ordinateur de confiance avec `php -r "echo password_hash('un-mot-de-passe-long', PASSWORD_DEFAULT), PHP_EOL;"`.
+- `supabase_url` : URL du projet.
+- `supabase_secret_key` : nouvelle clé serveur Supabase. Ne pas utiliser une clé qui a été partagée dans une conversation; la révoquer et en créer une nouvelle.
+
+Utiliser un mot de passe long et unique. La passerelle utilise un cookie `HttpOnly`, `SameSite=Strict`, une session limitée à huit heures, limite les essais de connexion et n'accepte que les tables/buckets nécessaires à l'admin.
+
 ## Publier sur OVH
 
 1. Créer `.env.local` avec l'URL Supabase et la clé publique, puis lancer `npm run build`.
 2. Transférer **le contenu** de `dist/` dans le répertoire web OVH (souvent `www/`). Le fichier `dist/.htaccess` doit être présent.
-3. Dans OVH, activer le certificat SSL et forcer HTTPS. Tester la page d'accueil, une URL profonde (par exemple `/equipe`), la connexion `/gestion`, l'envoi de contact, l'assistant et les uploads.
+3. Installer le fichier `/.cudis-secrets.php` hors du webroot. Activer PHP, cURL et le certificat SSL dans OVH, puis forcer HTTPS. Tester la page d'accueil, une URL profonde (par exemple `/equipe`), la connexion `/gestion`, l'envoi de contact, l'assistant et les uploads.
 
 Le `.htaccess` renvoie les routes React vers `index.html` tout en laissant les fichiers et répertoires réels intacts. Si le site est publié dans un sous-répertoire, adapter les chemins de base et les règles de réécriture avant compilation.
 
 ## Administration
 
-`/gestion` permet aux comptes autorisés de créer, modifier, supprimer et téléverser les membres, programmes, partenaires et ressources, de traiter les messages et de gérer la base de connaissances de l'assistant. Les fichiers de portraits fournis sont servis localement depuis `public/equipe/`; aucune image de membre n'est chargée depuis un site tiers.
+`/gestion` permet au compte PHP admin configuré sur OVH de créer, modifier, supprimer et téléverser les membres, programmes, partenaires et ressources, de traiter les messages et de gérer la base de connaissances de l'assistant. Les fichiers de portraits fournis sont servis localement depuis `public/equipe/`; aucune image de membre n'est chargée depuis un site tiers.
 
 ## Contrôle des coûts de l'assistant
 

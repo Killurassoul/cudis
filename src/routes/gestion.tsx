@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   Archive,
   ArchiveRestore,
@@ -20,7 +20,6 @@ import {
   ADMIN_ACCEPTED_MIME_TYPES,
   describeSupabaseError,
   getAdminSupabase,
-  isAdminEmailAllowed,
   uploadAdminFile,
 } from "@/lib/admin";
 import type {
@@ -70,7 +69,7 @@ function slugify(value: string) {
 
 export default function AdminPage() {
   const supabase = useMemo(() => getAdminSupabase(), []);
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<{ email: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -78,21 +77,18 @@ export default function AdminPage() {
       setLoading(false);
       return;
     }
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) =>
-      setSession(nextSession),
-    );
-    return () => data.subscription.unsubscribe();
+    fetch("/api/admin.php?action=session", { credentials: "same-origin" })
+      .then(async (response) => response.ok ? await response.json() as { email: string } : null)
+      .then(setSession)
+      .catch(() => setSession(null))
+      .finally(() => setLoading(false));
   }, [supabase]);
 
   if (!supabase) {
     return (
       <AdminShell>
         <p className="admin-alert">
-          Administration inactive : configurez VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.
+          Administration inactive : configurez les variables Supabase publiques du site.
         </p>
       </AdminShell>
     );
@@ -103,10 +99,10 @@ export default function AdminPage() {
         <p>Chargement…</p>
       </AdminShell>
     );
-  if (!session || !isAdminEmailAllowed(session)) {
+  if (!session) {
     return (
       <AdminShell>
-        <LoginForm supabase={supabase} />
+        <LoginForm onSignedIn={setSession} />
       </AdminShell>
     );
   }
@@ -121,7 +117,7 @@ function AdminShell({ children }: { children: ReactNode }) {
   );
 }
 
-function LoginForm({ supabase }: { supabase: SupabaseClient }) {
+function LoginForm({ onSignedIn }: { onSignedIn: (session: { email: string }) => void }) {
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -130,17 +126,21 @@ function LoginForm({ supabase }: { supabase: SupabaseClient }) {
     setError("");
     setSending(true);
     const form = new FormData(event.currentTarget);
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: String(form.get("email") ?? ""),
-      password: String(form.get("password") ?? ""),
-    });
-    if (authError) {
-      setError("Connexion impossible. Vérifiez l'e-mail et le mot de passe.");
-    } else if (!isAdminEmailAllowed(data.session)) {
-      await supabase.auth.signOut();
-      setError("Ce compte n'est pas autorisé à administrer le site.");
+    try {
+      const response = await fetch("/api/admin.php?action=login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Connexion impossible.");
+      onSignedIn({ email: result.email });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Connexion impossible. Vérifiez vos identifiants.");
+    } finally {
+      setSending(false);
     }
-    setSending(false);
   }
 
   return (
@@ -162,7 +162,7 @@ function LoginForm({ supabase }: { supabase: SupabaseClient }) {
   );
 }
 
-function AdminDashboard({ supabase, session }: { supabase: SupabaseClient; session: Session }) {
+function AdminDashboard({ supabase, session }: { supabase: SupabaseClient; session: { email: string } }) {
   const [section, setSection] = useState<AdminSection>("members");
   const [members, setMembers] = useState<Member[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -229,9 +229,9 @@ function AdminDashboard({ supabase, session }: { supabase: SupabaseClient; sessi
       <div className="admin-topbar">
         <div>
           <h1>Administration CUDIS</h1>
-          <p>{session.user.email}</p>
+          <p>{session.email}</p>
         </div>
-        <Button variant="outline" onClick={() => void supabase.auth.signOut()}>
+        <Button variant="outline" onClick={() => void fetch("/api/admin.php?action=logout", { method: "POST", credentials: "same-origin" }).then(() => window.location.reload())}>
           <LogOut />
           Déconnexion
         </Button>

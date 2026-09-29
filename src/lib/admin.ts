@@ -1,35 +1,50 @@
-import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-import { getSupabaseBrowserClient, hasSupabasePublicEnv } from "./supabase";
+import { hasSupabasePublicEnv } from "./supabase";
 
 // ------------------------------------------------------------
 // Socle commun du panneau /gestion :
-// - session Supabase Auth (pas d'inscription publique)
-// - liste blanche d'e-mails (couche de confort ; la vraie
-//   autorisation reste les policies RLS côté base)
+// - session PHP sécurisée côté OVH, indépendante de Supabase Auth
+// - proxy same-origin afin de garder la clé de service côté serveur
 // - upload Storage avec validation MIME + taille (10 Mo max)
 // ------------------------------------------------------------
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 Mo
 
-function readAdminEmails(): string[] {
-  const raw =
-    typeof import.meta !== "undefined" ? import.meta.env?.["VITE_ADMIN_EMAILS"] : undefined;
-  return String(raw ?? "")
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter((item) => item.length > 0);
-}
-
-export function isAdminEmailAllowed(session: Session | null): boolean {
-  const allowed = readAdminEmails();
-  const email = session?.user.email?.toLowerCase() ?? "";
-  if (allowed.length === 0) return email.length > 0; // pas de liste définie : la RLS fait foi
-  return allowed.includes(email);
-}
-
 export function getAdminSupabase(): SupabaseClient | null {
-  return hasSupabasePublicEnv() ? getSupabaseBrowserClient() : null;
+  if (!hasSupabasePublicEnv()) return null;
+  const url = import.meta.env["VITE_SUPABASE_URL"] as string;
+  const anonKey = import.meta.env["VITE_SUPABASE_ANON_KEY"] as string;
+  return createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch: adminProxyFetch },
+  });
+}
+
+async function adminProxyFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const request = new Request(input, init);
+  const target = new URL(request.url);
+  const configured = new URL(import.meta.env["VITE_SUPABASE_URL"] as string);
+  const allowedPath = target.pathname.startsWith("/rest/v1/") || target.pathname.startsWith("/storage/v1/object/");
+  if (target.origin !== configured.origin || !allowedPath) {
+    throw new Error("Action non autorisée via le proxy d’administration.");
+  }
+  const headers = new Headers({
+    "X-Admin-Target-Method": request.method,
+    "X-Admin-Target-Path": `${target.pathname}${target.search}`,
+  });
+  for (const name of ["content-type", "prefer", "accept", "range", "content-range", "x-upsert", "cache-control"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(`X-Admin-${name}`, value);
+  }
+  const body = ["GET", "HEAD"].includes(request.method) ? undefined : await request.arrayBuffer();
+  const proxyInit: RequestInit = {
+    method: "POST",
+    headers,
+    credentials: "same-origin",
+  };
+  if (body !== undefined) proxyInit.body = body;
+  return fetch("/api/admin.php?action=proxy", proxyInit);
 }
 
 const EXTENSION_BY_MIME: Record<string, string> = {
