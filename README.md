@@ -15,6 +15,8 @@ Seules les variables `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont néces
 
 Pour **le développement local uniquement**, `npm run dev` ouvre `/gestion` directement sans écran de connexion et utilise le proxy privé Vite. Ajoute une clé serveur Supabase fraîche à `CUDIS_LOCAL_SUPABASE_SECRET_KEY` dans `.env.local` pour que les ajouts/modifications fonctionnent. Cette variable n'a pas de préfixe `VITE_`, reste côté serveur, et n'entre pas dans `dist/`. Le serveur de développement écoute uniquement sur `127.0.0.1`. Ne déploie jamais le serveur Vite et n'utilise pas cette connexion locale en production.
 
+Cela permet de préparer les contenus **avant le lancement** : ouvre `http://127.0.0.1:5173/gestion`, ajoute les membres, programmes, partenaires, ressources et éléments du chatbot. Ils sont enregistrés tout de suite dans le projet Supabase choisi dans `.env.local`; au déploiement, configure le même projet Supabase et ces contenus seront déjà disponibles sur le site.
+
 ## Préparer Supabase
 
 1. Exécuter les migrations `supabase/migrations/` dans l'ordre, depuis l'éditeur SQL Supabase ou avec `supabase db push` après liaison du projet.
